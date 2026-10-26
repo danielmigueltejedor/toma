@@ -141,3 +141,13 @@ as PhotoCraft does with `cargo xtask corpus`.
 - [docs/agents.md](docs/agents.md): driving FilmCraft over MCP / the control channel, and the agent work loop
 - [docs/control-protocol.md](docs/control-protocol.md): control-channel method reference
 - [ATTRIBUTION.md](ATTRIBUTION.md): asset index
+
+## Repository-specific deterministic quality contract (2026-10-26)
+
+**Project:** Rust application/workspace.
+
+**Engineering requirements:** Protect stable file formats, crash recovery, undo commands and desktop packaging.
+
+**Verification commands:** cargo fmt --all -- --check; cargo metadata --locked --no-deps --format-version 1; targeted cargo test.
+
+Only claim checks passed after executing them. Every feature and fix should add or maintain tests for behavior, boundaries and failure cases. Never disable/weaken tests, suppress warnings or reduce coverage thresholds solely to pass CI. `AGENTS.md`, `QUALITY_GATES.md`, tests and workflows are review-sensitive. Require `quality` in branch protection. Disclose native dependencies and pre-existing CI failures. Preserve existing project rules.
