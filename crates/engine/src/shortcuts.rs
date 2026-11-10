@@ -53,7 +53,7 @@ pub const PANELS: &[&str] = &[
     "Essential Graphics",
     "Text",
     "Properties",
-    "Lumetri Color",
+    "Color Grading",
 ];
 
 pub const DEFAULT_PRESET: &str = "FilmCraft Default";
@@ -363,6 +363,22 @@ pub struct Binding {
     pub panel: Option<String>,
 }
 
+/// Off macOS the Control and Command keys are the same key. The built-in tables are written for
+/// macOS, so a binding on the Mac Control key (`⌃T`) can land on the same key as a Command binding
+/// (`⌘T`) in the same context: the Command binding wins and the Control one is left out there
+/// (that command has no default key on that platform). macOS keeps both.
+fn drop_control_collisions(b: &mut Vec<Binding>, p: Platform) {
+    if p.is_mac() {
+        return;
+    }
+    let primary: Vec<(String, Option<Chord>)> =
+        b.iter().filter(|x| x.chord().is_some_and(|c| !c.mods.ctrl)).map(|x| (x.context().to_string(), x.chord().map(|c| c.effective(p)))).collect();
+    b.retain(|x| {
+        let Some(c) = x.chord() else { return true };
+        !(c.mods.ctrl && primary.iter().any(|(ctx, k)| ctx == x.context() && *k == Some(c.effective(p))))
+    });
+}
+
 impl Binding {
     fn new(command: &str, keys: &str, panel: Option<&str>) -> Self {
         Binding { command: command.to_string(), keys: normalize(keys).unwrap_or_else(|_| keys.to_string()), panel: panel.map(str::to_string) }
@@ -410,6 +426,9 @@ fn category_of(id: &str, menu: &[&str]) -> String {
         "view" => "View".into(),
         "app" | "help" | "mode" => "Application".into(),
         "captions" => "Captions".into(),
+        // Keep legacy command ids stable without exposing their old feature name.
+        "lumetri" => "Color Grading".into(),
+        "tts" => "Text to Speech".into(),
         _ => menu.first().map(|s| s.to_string()).unwrap_or_else(|| {
             let mut c = prefix.chars();
             c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
@@ -564,8 +583,15 @@ impl Shortcuts {
     }
 
     /// Premiere-default entries FilmCraft Default adopts: commands with no shortcut of their own
-    /// whose Premiere key is free in that context.
+    /// whose Premiere key is free in that context on this platform.
     pub fn audit(&self) -> Vec<Binding> {
+        self.audit_for(Platform::current())
+    }
+
+    /// [`Self::audit`] for platform `p`. The Premiere table is Premiere's macOS keyboard: off macOS
+    /// the Control and Command keys are the same key, so an entry whose key would collide there
+    /// with one already taken (`⌃T` vs `⌘T`) is left out, and the command keeps no default key.
+    pub(crate) fn audit_for(&self, platform: Platform) -> Vec<Binding> {
         let base = self.base_defaults();
         let mut added: Vec<Binding> = Vec::new();
         for (c, k, p) in presets::PREMIERE {
@@ -573,7 +599,8 @@ impl Shortcuts {
                 continue;
             }
             let b = Binding::new(c, k, panel_opt(p));
-            let taken = base.iter().chain(added.iter()).any(|o| o.context() == b.context() && o.chord() == b.chord());
+            let key = b.chord().map(|c| c.effective(platform));
+            let taken = base.iter().chain(added.iter()).any(|o| o.context() == b.context() && o.chord().map(|c| c.effective(platform)) == key);
             if !taken {
                 added.push(b);
             }
@@ -583,8 +610,13 @@ impl Shortcuts {
 
     /// The bindings of a built-in preset.
     pub fn builtin(&self, name: &str) -> Option<Vec<Binding>> {
+        self.builtin_for(name, Platform::current())
+    }
+
+    /// [`Self::builtin`] as it is built on platform `p`.
+    pub(crate) fn builtin_for(&self, name: &str, p: Platform) -> Option<Vec<Binding>> {
         let mut b = self.base_defaults();
-        b.extend(self.audit());
+        b.extend(self.audit_for(p));
         let table: Vec<Entry> = match name {
             DEFAULT_PRESET => Vec::new(),
             PREMIERE_PRESET => presets::premiere(),
@@ -593,6 +625,7 @@ impl Shortcuts {
             _ => return None,
         };
         self.apply_table(&mut b, &table);
+        drop_control_collisions(&mut b, p);
         Some(b)
     }
 
@@ -630,9 +663,22 @@ impl Shortcuts {
         v
     }
 
-    fn preset_path(&self, name: &str) -> Option<PathBuf> {
+    pub(crate) fn preset_path(&self, name: &str) -> Option<PathBuf> {
         let safe: String = name.chars().map(|c| if c.is_alphanumeric() || " -_().".contains(c) { c } else { '_' }).collect();
-        self.presets_dir().map(|d| d.join(format!("{}.json", safe.trim())))
+        let mut file = format!("{}.json", safe.trim());
+        let dir = self.presets_dir()?;
+        // A preset called "active" must not replace the active set restored at startup. It is saved as
+        // "active~.json": `~` is never kept in a sanitised name, so no other preset can share that path.
+        // A file that already has this exact (differently cased) name is a preset saved by an earlier
+        // version on a case-sensitive file system, and stays reachable; a case-insensitive one lists
+        // `active.json` instead, so it is not mistaken for one.
+        if file.eq_ignore_ascii_case(ACTIVE_FILE) {
+            let legacy = file != ACTIVE_FILE && std::fs::read_dir(&dir).is_ok_and(|rd| rd.flatten().any(|e| e.file_name() == file.as_str()));
+            if !legacy {
+                file = format!("{}~.json", safe.trim());
+            }
+        }
+        Some(dir.join(file))
     }
 
     /// Use the per-user data directory: loads the active set saved there (if any).
@@ -706,7 +752,8 @@ impl Shortcuts {
         let nb = Binding { command: command.into(), keys: chord.canonical(), panel: panel.map(str::to_string) };
         let before = self.snapshot();
         if !add {
-            self.bindings.retain(|b| !(b.command == command && b.context() == nb.context()));
+            let copies = if nb.panel.is_none() { self.app_chords(command, None) } else { Vec::new() };
+            self.bindings.retain(|b| !(same_shortcut_command(&b.command, command) && (b.context() == nb.context() || is_copy(b, &copies))));
         }
         let mut reassigned = Vec::new();
         if !keep_conflicts {
@@ -737,9 +784,20 @@ impl Shortcuts {
         };
         let before = self.snapshot();
         let n0 = self.bindings.len();
+        let twins = shortcut_twins(command);
+        let copies = if panel == Some(None) { self.app_chords(command, chord.as_ref()) } else { Vec::new() };
         self.bindings.retain(|b| {
-            let hit = b.command == command && chord.as_ref().is_none_or(|c| b.chord().as_ref() == Some(c)) && panel.as_ref().is_none_or(|p| &b.panel == p);
-            !hit
+            let cmd = same_shortcut_command(&b.command, command);
+            let key_ok = chord.as_ref().is_none_or(|c| b.chord().as_ref() == Some(c));
+            // File ▸ Close and Close Sequence share Cmd+W (app + Timeline). The editor's Clear
+            // always sends panel Application; treating that as every context for this pair is
+            // what actually frees the chord (#773).
+            let panel_ok = match &panel {
+                None => true,
+                Some(p) if p.is_none() && twins => true,
+                Some(p) => &b.panel == p || is_copy(b, &copies),
+            };
+            !(cmd && key_ok && panel_ok)
         });
         let n = n0 - self.bindings.len();
         if n > 0 {
@@ -855,11 +913,7 @@ impl Shortcuts {
     /// when `activate`, made the active set.
     pub fn import(&mut self, path: &Path, activate: bool) -> std::result::Result<String, String> {
         let f = read_file(path)?;
-        let name = if f.name.trim().is_empty() || BUILTIN_PRESETS.contains(&f.name.as_str()) {
-            path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Imported".into())
-        } else {
-            f.name.clone()
-        };
+        let name = import_name(&f.name, path);
         let bindings: Vec<Binding> = convert(f.bindings, f.platform).into_iter().filter(|b| self.known(&b.command)).collect();
         if let Some(p) = self.preset_path(&name) {
             let file = PresetFile { format: FILE_FORMAT.into(), version: 1, name: name.clone(), platform: None, modified: false, bindings: bindings.clone() };
@@ -875,15 +929,25 @@ impl Shortcuts {
         Ok(name)
     }
 
+    /// The application-wide keys of `command` (only `key`, when given).
+    fn app_chords(&self, command: &str, key: Option<&Chord>) -> Vec<Chord> {
+        self.bindings
+            .iter()
+            .filter(|b| same_shortcut_command(&b.command, command) && b.panel.is_none())
+            .filter_map(Binding::chord)
+            .filter(|c| key.is_none_or(|k| k == c))
+            .collect()
+    }
+
     // ---------------------------------------------------------------- queries
 
     pub fn for_command(&self, id: &str) -> Vec<&Binding> {
-        self.bindings.iter().filter(|b| b.command == id).collect()
+        self.bindings.iter().filter(|b| same_shortcut_command(&b.command, id)).collect()
     }
 
     /// The shortcut menus show: the first application-wide one.
     pub fn primary(&self, id: &str) -> Option<String> {
-        self.bindings.iter().find(|b| b.command == id && b.panel.is_none()).map(|b| b.keys.clone())
+        self.bindings.iter().find(|b| same_shortcut_command(&b.command, id) && b.panel.is_none()).map(|b| b.keys.clone())
     }
 
     /// The command a chord runs with `panel` focused (panel shortcuts first).
@@ -967,6 +1031,21 @@ fn panel_opt(p: &str) -> Option<&str> {
     if p.is_empty() { None } else { Some(p) }
 }
 
+/// `file.close` is File ▸ Close: the same action as `sequence.close` (Close Sequence).
+fn shortcut_twins(id: &str) -> bool {
+    id == "file.close" || id == "sequence.close"
+}
+
+fn same_shortcut_command(bound: &str, target: &str) -> bool {
+    bound == target || (shortcut_twins(bound) && shortcut_twins(target))
+}
+
+/// A panel binding on one of the command's application keys (New Bin's Cmd+B in the Project
+/// panel) is a copy of that shortcut, so editing the application shortcut edits it too (#1333).
+fn is_copy(b: &Binding, app_chords: &[Chord]) -> bool {
+    b.panel.is_some() && b.chord().is_some_and(|c| app_chords.contains(&c))
+}
+
 fn check_panel(panel: Option<&str>) -> std::result::Result<Option<&'static str>, String> {
     match panel {
         None => Ok(None),
@@ -978,6 +1057,7 @@ fn check_panel(panel: Option<&str>) -> std::result::Result<Option<&'static str>,
                 "sourcemonitor" => "source",
                 "projects" => "project",
                 "timelines" => "timeline",
+                "lumetricolor" | "colorgrade" => "colorgrading",
                 _ => n.as_str(),
             };
             PANELS
@@ -1003,13 +1083,42 @@ fn convert(bindings: Vec<Binding>, platform: Option<Platform>) -> Vec<Binding> {
         .collect()
 }
 
+/// Largest keyboard shortcuts file read: a full set is a few hundred kilobytes.
+const MAX_FILE: u64 = 8 << 20;
+
 fn read_file(path: &Path) -> std::result::Result<PresetFile, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let f: PresetFile = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
-    if f.format != FILE_FORMAT {
-        return Err(format!("{}: not a FilmCraft keyboard shortcuts file", path.display()));
+    // at most one byte past the limit is read, whatever the file's size says now
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|f| std::io::Read::read_to_end(&mut std::io::Read::take(f, MAX_FILE + 1), &mut bytes))
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    if bytes.len() as u64 > MAX_FILE {
+        return Err(format!("{}: too large for a keyboard shortcuts file", path.display()));
     }
-    Ok(f)
+    // FilmCraft's own format, whatever the file is called (an export may be named anything)
+    let parsed = serde_json::from_slice::<PresetFile>(&bytes)
+        .map_err(|e| e.to_string())
+        .and_then(|f| if f.format == FILE_FORMAT { Ok(f) } else { Err("not a FilmCraft keyboard shortcuts file".into()) });
+    parsed.map_err(|why| {
+        // Premiere Pro's own shortcut files (#2489): say so, instead of a JSON parse error
+        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("kys")) {
+            format!(
+                "{}: Premiere Pro .kys files can't be imported yet; choose the \"Premiere Pro Compatible\" preset for Premiere's default keys",
+                path.display()
+            )
+        } else {
+            format!("{}: {why}", path.display())
+        }
+    })
+}
+
+/// The custom preset an imported file becomes: the set's own name, else the file's; never a
+/// built-in preset's, which would hide it from the preset list (an exported "FilmCraft Default"
+/// imported again, #2489): that one gets " (Imported)".
+fn import_name(name: &str, path: &Path) -> String {
+    let stem = path.file_stem().map(|s| s.to_string_lossy().trim().to_string()).filter(|s| !s.is_empty());
+    let name = Some(name.trim().to_string()).filter(|n| !n.is_empty()).or(stem).unwrap_or_else(|| "Imported".into());
+    if BUILTIN_PRESETS.contains(&name.as_str()) { format!("{name} (Imported)") } else { name }
 }
 
 fn write_file(path: &Path, f: &PresetFile) -> std::result::Result<(), String> {
@@ -1065,7 +1174,17 @@ fn list(s: &Session, p: &Value) -> Value {
 pub fn commands() -> Vec<CommandSpec> {
     macro_rules! sc {
         ($id:literal, $label:literal, $params:literal, $journal:expr, $run:expr) => {
-            CommandSpec { id: $id, label: $label, menu: &[], shortcut: None, params: $params, enabled: always, run: $run, journal: $journal }
+            CommandSpec {
+                id: $id,
+                label: $label,
+                menu: &[],
+                shortcut: None,
+                params: $params,
+                enabled: always,
+                run: $run,
+                journal: $journal,
+                named: crate::commands::NamedKeys::NONE,
+            }
         };
     }
     vec![
@@ -1152,4 +1271,29 @@ pub fn commands() -> Vec<CommandSpec> {
             Ok(json!({"count": a.len(), "assigned": a}))
         }),
     ]
+}
+
+#[cfg(test)]
+mod naming_tests {
+    use super::{Binding, CommandInfo, Platform, check_panel, convert};
+
+    #[test]
+    fn grading_shortcut_category_preserves_legacy_command_identity() {
+        let command = CommandInfo::new("lumetri.setLook", "Set Creative Look", &[], Some("Cmd+Alt+L"));
+        assert_eq!(command.category, "Color Grading");
+        assert_eq!(command.id, "lumetri.setLook");
+        assert_eq!(command.label, "Set Creative Look");
+        assert!(command.menu.is_empty());
+        assert_eq!(command.defaults, [("Cmd+Alt+L".to_string(), None)]);
+    }
+
+    #[test]
+    fn grading_shortcuts_import_old_and_current_panel_names() {
+        for name in ["Lumetri Color", "Color Grade", "Color Grading"] {
+            assert_eq!(check_panel(Some(name)).unwrap(), Some("Color Grading"));
+            let bindings = convert(vec![Binding::new("playback.toggle", "Cmd+1", Some(name))], Some(Platform::Mac));
+            assert_eq!(bindings.len(), 1);
+            assert_eq!(bindings[0].panel.as_deref(), Some("Color Grading"));
+        }
+    }
 }

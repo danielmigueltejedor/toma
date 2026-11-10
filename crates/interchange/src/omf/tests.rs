@@ -17,7 +17,7 @@ fn project() -> (Project, ItemId) {
         kind: filmcraft_media::MediaKind::AudioOnly,
         duration: FrameRate::FPS_25.tick_of(2500),
         video: None,
-        audio: Some(filmcraft_media::AudioStreamInfo { sample_rate: 48_000, channels: 2, codec: String::new(), bits_per_sample: Some(16) }),
+        audio_streams: vec![filmcraft_media::AudioStreamInfo { sample_rate: 48_000, channels: 2, codec: String::new(), bits_per_sample: Some(16) }],
         container: String::new(),
         start_timecode: None,
         file_size: None,
@@ -25,7 +25,7 @@ fn project() -> (Project, ItemId) {
     let a = p.add_item(
         "a.wav",
         filmcraft_project::Label::Iris,
-        filmcraft_project::ItemKind::Media(filmcraft_project::MediaClip {
+        filmcraft_project::ItemKind::Media(Box::new(filmcraft_project::MediaClip {
             media: filmcraft_project::MediaRef::File { path: "/m/a.wav".into() },
             info,
             interpret: Default::default(),
@@ -35,7 +35,7 @@ fn project() -> (Project, ItemId) {
             offline: false,
             proxy: None,
             identity: None,
-        }),
+        })),
         None,
     );
     let r = FrameRate::FPS_25;

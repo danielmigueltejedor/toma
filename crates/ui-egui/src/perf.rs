@@ -20,12 +20,34 @@ pub fn stats(app: &FilmcraftApp) -> Value {
         "resolution": app.ui.program.res.label(),
         "draftDecode": app.session.prefs.playback.draft_decode,
     });
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let sr = app.audio.as_ref().map_or(0, |a| a.sample_rate());
+        v["playback"]["audio"] = app.playback.audio_stats.to_json(sr);
+    }
     let mut frames = app.frames.stats().to_json();
     frames["workers"] = json!(app.frames.workers());
     frames["queued"] = json!(app.frames.queue_len());
     frames["renderCostMs"] = json!(app.frames.render_cost() * 1e3);
     frames["cache"] = json!({"images": images, "imageMB": image_bytes as f64 / 1e6, "plans": plans, "planMB": plan_bytes as f64 / 1e6});
     v["frames"] = frames;
+    v["gpu"] = app.gpu.as_ref().map_or(Value::Null, |g| {
+        json!({
+            "uploadedBytes": g.compositor.uploaded_bytes,
+            "transitions": g.compositor.gpu_transitions,
+            "cpuTransitions": g.compositor.cpu_transitions,
+            "adjustments": g.compositor.gpu_adjustments,
+            "cpuAdjustments": g.compositor.cpu_adjustments,
+            "submitMs": g.last_ms,
+        })
+    });
+    // the Program monitor's picture against what is due: how far a drag or a scrub is ahead of it
+    v["monitor"] = json!({
+        "frame": app.program_picture().map(|k| k.frame),
+        "revision": app.program_picture().map(|k| k.revision),
+        "projectRevision": app.session.revision,
+        "playheadFrame": app.session.active_sequence().map(|q| q.settings.frame_rate.frame_at(app.session.playhead())),
+    });
     v["ui"] = json!({"fps": app.fps, "frameMs": if app.fps > 0.0 { 1000.0 / app.fps as f64 } else { 0.0 }});
     v["process"] = json!({"cpuS": crate::frames::process_cpu_time().map(|d| d.as_secs_f64())});
     v

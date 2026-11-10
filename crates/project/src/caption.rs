@@ -74,7 +74,7 @@ pub enum CaptionAnchor {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CaptionStyle {
-    /// Font family name. Only the bundled Inter is rendered today; other names fall back to it.
+    /// Font family name (bundled, craft-fonts or system); unknown or empty names fall back to Inter.
     pub font: String,
     /// Font size in pixels for a 1080-line frame (scaled with the frame height).
     pub size: f32,
@@ -93,6 +93,9 @@ pub struct CaptionStyle {
     /// Text outline width in pixels at 1080 lines (0 = none).
     pub outline: f32,
     pub outline_color: [u8; 4],
+    /// Font style within the family (`Regular`, `Medium`, `SemiBold`, `Bold Italic`…), resolved
+    /// like graphic text: the nearest weight when the family has no face of that name.
+    pub font_style: String,
 }
 
 impl Default for CaptionStyle {
@@ -109,6 +112,7 @@ impl Default for CaptionStyle {
             line_spacing: 1.25,
             outline: 0.0,
             outline_color: [0, 0, 0, 255],
+            font_style: "SemiBold".into(),
         }
     }
 }
@@ -208,6 +212,7 @@ impl CaptionTrack {
     }
     /// Invariant check: captions sorted, positive duration, no overlaps.
     pub fn check(&self) -> Result<(), String> {
+        self.check_bounds()?;
         for c in &self.captions {
             if c.duration.0 <= 0 {
                 return Err(format!("{}: caption {:?} has non-positive duration", self.name, c.id));
@@ -216,6 +221,15 @@ impl CaptionTrack {
         for w in self.captions.windows(2) {
             if w[0].end() > w[1].start {
                 return Err(format!("{}: captions {:?} and {:?} overlap", self.name, w[0].id, w[1].id));
+            }
+        }
+        Ok(())
+    }
+    /// Only the time bounds that keep caption arithmetic from overflowing (see `Track::check_bounds`).
+    pub fn check_bounds(&self) -> Result<(), String> {
+        for c in &self.captions {
+            if !crate::bounded_time_range(c.start, c.duration) {
+                return Err(format!("{}: caption {:?} is outside supported time bounds", self.name, c.id));
             }
         }
         Ok(())
@@ -229,25 +243,36 @@ pub fn plain_text(s: &str) -> String {
     while let Some(c) = chars.next() {
         match c {
             '<' => {
-                // a tag runs to the next '>' (if none, keep the '<' literally)
-                let rest: String = chars.clone().collect();
-                if let Some(end) = rest.find('>') {
-                    for _ in 0..rest[..=end].chars().count() {
-                        chars.next();
+                // A tag runs to the next '>'.  Scan forward once; preserving an unterminated
+                // tag as literal text must not rescan every later opening bracket.
+                let mut literal = String::new();
+                let mut closed = false;
+                for next in chars.by_ref() {
+                    if next == '>' {
+                        closed = true;
+                        break;
                     }
-                } else {
+                    literal.push(next);
+                }
+                if !closed {
                     out.push('<');
+                    out.push_str(&literal);
                 }
             }
             '{' if chars.peek() == Some(&'\\') => {
                 // SSA-style override blocks some SRT files carry: {\an8}
-                let rest: String = chars.clone().collect();
-                if let Some(end) = rest.find('}') {
-                    for _ in 0..rest[..=end].chars().count() {
-                        chars.next();
+                let mut literal = String::new();
+                let mut closed = false;
+                for next in chars.by_ref() {
+                    if next == '}' {
+                        closed = true;
+                        break;
                     }
-                } else {
+                    literal.push(next);
+                }
+                if !closed {
                     out.push('{');
+                    out.push_str(&literal);
                 }
             }
             '&' => {
@@ -283,11 +308,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn styles_saved_without_a_font_style_load_semibold() {
+        let old = r#"{"font":"Inter","size":54.0,"color":[255,255,255,255],"background":true,"background_color":[0,0,0,191],
+            "align":"Center","anchor":"Bottom","margin":0.08,"line_spacing":1.25,"outline":0.0,"outline_color":[0,0,0,255]}"#;
+        let st: CaptionStyle = serde_json::from_str(old).unwrap();
+        assert_eq!(st, CaptionStyle::default());
+        assert_eq!(st.font_style, "SemiBold");
+    }
+
+    #[test]
     fn plain() {
         assert_eq!(plain_text("<i>Hello</i> &amp; <b>bye</b>"), "Hello & bye");
         assert_eq!(plain_text("{\\an8}Top"), "Top");
         assert_eq!(plain_text("a < b"), "a < b");
         assert_eq!(plain_text("<v Bob>Hi</v>"), "Hi");
+    }
+
+    #[test]
+    fn malformed_caption_markup_is_preserved_without_repeated_suffix_scans() {
+        let angle = "<".repeat(10_000);
+        let ssa = format!("{{\\{}", "{".repeat(10_000));
+        assert_eq!(plain_text(&angle), angle);
+        assert_eq!(plain_text(&ssa), ssa);
     }
 
     #[test]
@@ -309,5 +351,24 @@ mod tests {
         assert!(t.check().is_ok());
         assert_eq!(CaptionFormat::from_name("cea608"), Some(CaptionFormat::Cea608));
         assert_eq!(CaptionFormat::from_name("CEA-708"), Some(CaptionFormat::Cea708));
+    }
+
+    #[test]
+    fn corrupt_caption_times_do_not_overflow_the_overlap_check() {
+        let mut track = CaptionTrack::new(TrackId(1), "Subtitles".into(), CaptionFormat::Subtitle);
+        for (id, start) in [(1, i64::MAX), (2, 10)] {
+            track.captions.push(Caption {
+                id: ClipId(id),
+                start: Tick(start),
+                duration: Tick(50),
+                text: String::new(),
+                speaker: None,
+                cue_id: None,
+                settings: String::new(),
+            });
+        }
+        let result = std::panic::catch_unwind(|| track.check());
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_err());
     }
 }

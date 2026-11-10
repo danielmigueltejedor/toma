@@ -13,14 +13,14 @@
 //! `file.exportOmf {path, sequence?, audio?: "embedded"|"separate", audioFormat?, sampleRate?,
 //! bitDepth?, trimAudio? (default on), handles?, renderAudioEffects?, breakoutToMono?}`
 //!
-//! `file.importAaf {path}` (also `file.import` of `.aaf` / `.omf` files).
+//! `file.importAaf {path, bin?}` (also `file.import` of `.aaf` / `.omf` files).
 
 use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 
-use filmcraft_interchange::essence::{AudioEssence, AudioNeed, EssenceData, EssenceKey, MediaOptions, MixdownVideo, NeedOptions, audio_needs};
-use filmcraft_project::{ItemId, Project, SequenceSettings, TrackKind};
+use filmcraft_interchange::essence::{AudioEssence, AudioNeed, EssenceData, EssenceKey, MediaOptions, MixdownVideo, NeedOptions, NestNeeds, audio_needs};
+use filmcraft_project::{ClipId, ItemId, Project, Sequence, SequenceSettings, Track, TrackItem, TrackKind};
 use filmcraft_time::{Tick, TimeRange};
 
 use crate::commands::{bad, bool_p, str_p, u64_p};
@@ -50,6 +50,10 @@ pub struct AudioPlan {
     pub handles: Tick,
     pub render_effects: bool,
     pub breakout: bool,
+    /// Nested sequences on the audio tracks. OMF: their sound is rendered into the export, as
+    /// Premiere Pro does. AAF: they are written as compositions, so the media of the clips inside
+    /// them is prepared like the rest.
+    pub nests: NestNeeds,
 }
 
 fn plan_from(s: &Session, p: &Value, seq: ItemId, cmd: &str, omf: bool) -> Result<AudioPlan> {
@@ -70,10 +74,20 @@ fn plan_from(s: &Session, p: &Value, seq: ItemId, cmd: &str, omf: bool) -> Resul
     if !(8_000..=192_000).contains(&sample_rate) {
         return Err(bad(cmd, "sampleRate must be 8000–192000"));
     }
-    let bits = u64_p(p, "bitDepth").unwrap_or(16) as u16;
-    if bits != 16 && bits != 24 {
-        return Err(bad(cmd, "bitDepth must be 16 or 24"));
-    }
+    // A number, or the string the params list it as ("16|24"); anything else is refused rather
+    // than read as 16 (#4019).
+    let bits: u16 = match p.get("bitDepth").filter(|v| !v.is_null()) {
+        None => 16,
+        Some(v) => match v
+            .as_u64()
+            .or_else(|| v.as_f64().filter(|f| f.fract() == 0.0 && *f >= 0.0).map(|f| f as u64))
+            .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
+        {
+            Some(16) => 16,
+            Some(24) => 24,
+            _ => return Err(bad(cmd, format!("bitDepth must be 16 or 24, not {v}"))),
+        },
+    };
     let frames = u64_p(p, "handles").unwrap_or(if omf { 30 } else { 0 }) as i64;
     Ok(AudioPlan {
         mode,
@@ -85,6 +99,7 @@ fn plan_from(s: &Session, p: &Value, seq: ItemId, cmd: &str, omf: bool) -> Resul
         handles: q.settings.frame_rate.tick_of(frames),
         render_effects: bool_p(p, "renderAudioEffects").unwrap_or(false),
         breakout: bool_p(p, "breakoutToMono").unwrap_or(false),
+        nests: if omf { NestNeeds::Render } else { NestNeeds::Inside },
     })
 }
 
@@ -125,6 +140,9 @@ fn dequantize(pcm: &[u8], channels: usize, bits: u16) -> Vec<Vec<f32>> {
     out
 }
 
+const MAX_EXPORT_AUDIO_CHANNELS: usize = 64;
+const MAX_EXPORT_AUDIO_SAMPLES: usize = 64 * 1024 * 1024;
+
 /// Decode a media range at `sample_rate` (planar).
 fn decode(s: &Session, need: &AudioNeed, sample_rate: u32) -> Result<Vec<Vec<f32>>> {
     let src = s
@@ -133,12 +151,17 @@ fn decode(s: &Session, need: &AudioNeed, sample_rate: u32) -> Result<Vec<Vec<f32
         .ok_or_else(|| EngineError::Other(format!("media {} is offline", need.path.as_deref().unwrap_or("?"))))?;
     let start = need.start.to_units_floor(sample_rate as i64);
     let frames = (need.end.to_units_floor(sample_rate as i64) - start).max(0) as usize;
-    let mut out: Vec<Vec<f32>> = vec![Vec::with_capacity(frames); need.channels.max(1) as usize];
+    let ch = (need.channels.max(1) as usize).min(MAX_EXPORT_AUDIO_CHANNELS);
+    let total_samples = ch.checked_mul(frames).ok_or_else(|| EngineError::Other("audio export buffer size overflow".into()))?;
+    if total_samples > MAX_EXPORT_AUDIO_SAMPLES {
+        return Err(EngineError::Other(format!("audio export buffer size {total_samples} samples exceeds maximum allowed ({MAX_EXPORT_AUDIO_SAMPLES})")));
+    }
+    let mut out: Vec<Vec<f32>> = vec![Vec::with_capacity(frames); ch];
     let chunk = sample_rate as usize * 10;
     let mut done = 0usize;
     while done < frames {
         let n = chunk.min(frames - done);
-        let b = src.audio(start + done as i64, n, sample_rate).map_err(|e| EngineError::Other(e.to_string()))?;
+        let b = src.audio_stream(need.audio_stream, start + done as i64, n, sample_rate).map_err(|e| EngineError::Other(e.to_string()))?;
         for (c, o) in out.iter_mut().enumerate() {
             match b.channels.get(c).or(b.channels.first()) {
                 Some(x) => o.extend(x.iter().copied().chain(std::iter::repeat(0.0)).take(n)),
@@ -154,12 +177,8 @@ fn decode(s: &Session, need: &AudioNeed, sample_rate: u32) -> Result<Vec<Vec<f32
 /// pipeline's audio mixer.
 fn render_clip(s: &Session, seq: ItemId, need: &AudioNeed, sample_rate: u32, bits: u16) -> Result<Vec<Vec<f32>>> {
     let EssenceKey::Clip(clip_id) = need.key else { return decode(s, need, sample_rate) };
-    let q = s.project.sequence(seq).ok_or(EngineError::NoSequence)?;
-    let (track, c) = q
-        .tracks(TrackKind::Audio)
-        .iter()
-        .find_map(|t| t.items.iter().find(|c| c.id == clip_id).map(|c| (t, c.clone())))
-        .ok_or_else(|| EngineError::Other("clip not found".into()))?;
+    let (q, track, c) = audio_clip(&s.project, seq, clip_id).ok_or_else(|| EngineError::Other("clip not found".into()))?;
+    let c = c.clone();
     let mut p: Project = (*s.project).clone();
     let settings = SequenceSettings { sample_rate, ..q.settings.clone() };
     let rs = p.new_sequence("AAF audio render", settings, 0, 1, None);
@@ -204,6 +223,19 @@ fn render_clip(s: &Session, seq: ItemId, need: &AudioNeed, sample_rate: u32, bit
     Ok(dequantize(&pcm, ch as usize, b))
 }
 
+/// The audio clip `clip` with its track and sequence: in `seq`, or in a sequence nested in it
+/// (clip ids are unique in a project).
+fn audio_clip(p: &Project, seq: ItemId, clip: ClipId) -> Option<(&Sequence, &Track, &TrackItem)> {
+    let first = p.sequence(seq).into_iter();
+    let others = p.sequences().filter(|i| i.id != seq).filter_map(|i| p.sequence(i.id));
+    for q in first.chain(others) {
+        if let Some((t, c)) = q.tracks(TrackKind::Audio).iter().find_map(|t| t.items.iter().find(|c| c.id == clip).map(|c| (t, c))) {
+            return Some((q, t, c));
+        }
+    }
+    None
+}
+
 fn safe_name(s: &str) -> String {
     let n: String = s.chars().map(|c| if c.is_alphanumeric() || " -_.".contains(c) { c } else { '_' }).collect();
     let n = n.trim().trim_matches('.').to_string();
@@ -216,27 +248,43 @@ fn ensure_dir(s: &Session, dir: &str) {
     }
 }
 
+fn check_linked_streams(s: &Session, seq: ItemId, plan: &AudioPlan) -> Result<()> {
+    if plan.mode == AudioMode::Linked && !plan.trim && !plan.render_effects {
+        let needs = audio_needs(&s.project, seq, &NeedOptions { nests: plan.nests, ..Default::default() });
+        if needs.iter().any(|need| need.audio_stream > 0) {
+            return Err(EngineError::Other("linked AAF media cannot select container audio streams; choose embedded or separate audio".into()));
+        }
+    }
+    Ok(())
+}
+
 /// Prepare the audio essence of an export; returns the essence and the files written.
 pub fn prepare_audio(s: &Session, seq: ItemId, plan: &AudioPlan, media_dir: &str) -> Result<(Vec<AudioEssence>, Vec<String>)> {
+    check_linked_streams(s, seq, plan)?;
     if plan.mode == AudioMode::Linked && !plan.trim && !plan.render_effects {
         return Ok((Vec::new(), Vec::new()));
     }
-    let needs =
-        audio_needs(&s.project, seq, &NeedOptions { handles: plan.handles, per_clip: plan.render_effects, whole_media: !plan.trim && !plan.render_effects });
+    let needs = audio_needs(
+        &s.project,
+        seq,
+        &NeedOptions { handles: plan.handles, per_clip: plan.render_effects, whole_media: !plan.trim && !plan.render_effects, nests: plan.nests },
+    );
     let mut essence = Vec::new();
     let mut files = Vec::new();
     let mut used = std::collections::HashSet::new();
     for need in &needs {
-        let planar = if plan.render_effects { render_clip(s, seq, need, plan.sample_rate, plan.bits)? } else { decode(s, need, plan.sample_rate)? };
+        // a nested sequence has no file to read: its sound is mixed, with what is on the clip
+        let nest = s.project.sequence(need.item).is_some();
+        let planar = if plan.render_effects || nest { render_clip(s, seq, need, plan.sample_rate, plan.bits)? } else { decode(s, need, plan.sample_rate)? };
         let frames = planar.first().map_or(0, Vec::len) as u64;
         let groups: Vec<(Option<u32>, Vec<&Vec<f32>>)> =
             if plan.breakout { planar.iter().enumerate().map(|(c, x)| (Some(c as u32), vec![x])).collect() } else { vec![(None, planar.iter().collect())] };
         let base = match need.key {
             EssenceKey::Clip(c) => {
-                let name = s.project.sequence(seq).and_then(|q| q.find_item(c)).map(|(_, ti)| ti.name.clone()).unwrap_or_default();
+                let name = audio_clip(&s.project, seq, c).map(|(_, _, ti)| ti.name.clone()).unwrap_or_default();
                 format!("{} {}", safe_name(&name), c.0)
             }
-            EssenceKey::Media(_) => safe_name(
+            EssenceKey::Media(_) | EssenceKey::MediaStream { .. } => safe_name(
                 need.path
                     .as_deref()
                     .map(|p| std::path::Path::new(p).file_stem().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default())
@@ -302,7 +350,7 @@ pub fn prepare_audio(s: &Session, seq: ItemId, plan: &AudioPlan, media_dir: &str
                 bits: plan.bits,
                 channels: n,
                 data,
-                effects_rendered: plan.render_effects,
+                effects_rendered: plan.render_effects || nest,
             });
         }
     }
@@ -361,6 +409,7 @@ pub fn export_aaf(s: &mut Session, p: &Value) -> Result<Value> {
     let path = str_p(p, "path").ok_or_else(|| bad(cmd, "need `path`"))?.to_string();
     let seq = crate::export_tools::sequence_param(s, p, cmd)?;
     let plan = plan_from(s, p, seq, cmd, false)?;
+    check_linked_streams(s, seq, &plan)?;
     let (dir, stem) = split(&path);
     let media_dir = join(&dir, &format!("{stem} Media"));
     let mut files = Vec::new();
@@ -417,5 +466,6 @@ pub fn import_document(s: &mut Session, p: &Value, cmd: &str) -> Result<Value> {
     let bytes = s.services.read_file(&path).map_err(|e| EngineError::Other(format!("{path}: {e}")))?;
     let format = crate::interchange::detect(&path, &bytes).filter(|f| matches!(f, filmcraft_interchange::Format::Aaf | filmcraft_interchange::Format::Omf));
     let format = format.ok_or_else(|| bad(cmd, format!("{path} is not an AAF or OMF file")))?;
-    crate::interchange::import(s, &path, &bytes, format)
+    let bin = u64_p(p, "bin").map(filmcraft_project::BinId);
+    crate::interchange::import(s, &path, &bytes, format, bin)
 }

@@ -110,13 +110,13 @@ pub const COLUMNS: [&str; 15] = [
 /// The text of one column of an item (empty when the item has no such value).
 pub fn column_text(p: &Project, it: &ProjectItem, column: &str) -> String {
     let media = match &it.kind {
-        ItemKind::Media(m) => Some(m),
+        ItemKind::Media(m) => Some(m.as_ref()),
         ItemKind::Subclip { parent, .. } => p.item(*parent).and_then(|x| x.as_media()),
         _ => None,
     };
     match column.to_ascii_lowercase().as_str() {
         "name" => it.name.clone(),
-        "label" => it.label.name().to_string(),
+        "label" => it.label_value(),
         "media type" | "type" => it.type_label().to_string(),
         "frame rate" => {
             if it.has_video() {
@@ -133,7 +133,7 @@ pub fn column_text(p: &Project, it: &ProjectItem, column: &str) -> String {
             .and_then(|m| m.info.video.as_ref())
             .map(|v| format!("{} x {} ({:.4}) {}", v.width, v.height, v.par.0 as f64 / v.par.1.max(1) as f64, v.codec))
             .unwrap_or_default(),
-        "audio info" => media.and_then(|m| m.info.audio.as_ref()).map(|a| format!("{} Hz - {} ch {}", a.sample_rate, a.channels, a.codec)).unwrap_or_default(),
+        "audio info" => media.and_then(|m| m.info.audio()).map(|a| format!("{} Hz - {} ch {}", a.sample_rate, a.channels, a.codec)).unwrap_or_default(),
         "file path" | "path" => match media.map(|m| &m.media) {
             Some(MediaRef::File { path }) => path.clone(),
             _ => String::new(),

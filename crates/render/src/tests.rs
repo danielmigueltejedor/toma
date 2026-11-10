@@ -13,7 +13,7 @@ fn setup() -> (Project, ItemId, ItemId, ItemId, SourceMap) {
         let id = p.add_item(
             &info.name.clone(),
             Label::Iris,
-            ItemKind::Media(MediaClip {
+            ItemKind::Media(Box::new(MediaClip {
                 media: MediaRef::Generator(generator),
                 info,
                 interpret: Default::default(),
@@ -23,7 +23,7 @@ fn setup() -> (Project, ItemId, ItemId, ItemId, SourceMap) {
                 offline: false,
                 proxy: None,
                 identity: None,
-            }),
+            })),
             None,
         );
         map.0.insert(id, Arc::new(g) as SharedSource);
@@ -79,6 +79,19 @@ fn half_resolution_matches_full_downsampled() {
     }
 }
 
+/// The monitor conversion with alpha has the color of the opaque one and the image's alpha.
+#[test]
+fn over_black_with_alpha_keeps_the_color_and_the_alpha() {
+    let img = Image { w: 3, h: 1, px: vec![1.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.25, 0.0, 0.5] };
+    let opaque = img.over_black_rgba8();
+    let with_alpha = img.over_black_with_alpha_rgba8();
+    for i in 0..3 {
+        assert_eq!(with_alpha[i * 4..i * 4 + 3], opaque[i * 4..i * 4 + 3], "pixel {i}");
+    }
+    assert_eq!([with_alpha[3], with_alpha[7], with_alpha[11]], [255, 0, 128]);
+    assert_eq!([opaque[3], opaque[7], opaque[11]], [255, 255, 255]);
+}
+
 #[test]
 fn motion_scale_and_position() {
     let (mut p, red, _o, seq, map) = setup();
@@ -103,7 +116,7 @@ fn cross_dissolve_midpoint() {
     let blue = p.add_item(
         "blue",
         Label::Iris,
-        ItemKind::Media(MediaClip {
+        ItemKind::Media(Box::new(MediaClip {
             media: MediaRef::Generator(blue_src.generator.clone()),
             info,
             interpret: Default::default(),
@@ -113,7 +126,7 @@ fn cross_dissolve_midpoint() {
             offline: false,
             proxy: None,
             identity: None,
-        }),
+        })),
         None,
     );
     let mut map = map;
@@ -155,7 +168,7 @@ fn audio_mix_bars_tone() {
     let id = p.add_item(
         "bars",
         Label::Iris,
-        ItemKind::Media(MediaClip {
+        ItemKind::Media(Box::new(MediaClip {
             media: MediaRef::Generator(Generator::BarsAndTone),
             info,
             interpret: Default::default(),
@@ -165,7 +178,7 @@ fn audio_mix_bars_tone() {
             offline: false,
             proxy: None,
             identity: None,
-        }),
+        })),
         None,
     );
     let mut map = SourceMap::default();
@@ -199,13 +212,81 @@ fn plan_matches_reference_renderer() {
     for f in [0, 12, 20, 40] {
         let opts = RenderOptions { scale: 0.5, ..Default::default() };
         let reference = render_sequence(&p, seq, r.tick_of(f), opts, &map);
-        let plan = plan::plan_frame(&p, seq, r.tick_of(f), opts, &map);
+        let plan = plan::plan_frame(&p, seq, r.tick_of(f), opts, plan::DeviceCaps::ALL, &map);
         assert!(matches!(plan, plan::FramePlan::Layers { .. }), "simple frame should be GPU-drawable");
         let got = plan::execute_cpu(&plan);
         assert_eq!((got.w, got.h), (reference.w, reference.h));
         let max = got.px.iter().zip(&reference.px).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
         assert!(max < 0.02, "frame {f}: max diff {max}");
     }
+}
+
+#[test]
+fn push_plan_preserves_reference_track_order_and_reverse() {
+    let (mut p, red, ocean, seq, map) = setup();
+    place(&mut p, seq, 0, ocean, 0, 48);
+    let a = place(&mut p, seq, 1, red, 0, 24);
+    let b = place(&mut p, seq, 1, ocean, 24, 24);
+    let rate = FrameRate::FPS_24;
+    let s = p.sequence_mut(seq).unwrap();
+    for item in &mut s.video_tracks[1].items {
+        item.effect_mut("opacity").unwrap().param_mut("opacity").unwrap().value = ParamValue::Float(55.0);
+        item.effect_mut("motion").unwrap().param_mut("scale").unwrap().value = ParamValue::Float(75.0);
+    }
+    s.video_tracks[1].transitions.push(filmcraft_project::Transition {
+        id: filmcraft_project::TransitionId(999),
+        effect: filmcraft_project::find_effect("push").unwrap().instance(),
+        start: rate.tick_of(18),
+        duration: rate.tick_of(12),
+        from: Some(a),
+        to: Some(b),
+        align: Default::default(),
+        reverse: false,
+    });
+    for reverse in [false, true] {
+        for scale in [1.0, 0.5] {
+            for missing in [false, true] {
+                let tr = &mut p.sequence_mut(seq).unwrap().video_tracks[1].transitions[0];
+                tr.reverse = reverse;
+                tr.to = if missing { None } else { Some(b) };
+                for f in [18, 21, 24, 29] {
+                    let opts = RenderOptions { scale, ..Default::default() };
+                    let plan = plan::plan_frame(&p, seq, rate.tick_of(f), opts, plan::DeviceCaps::ALL, &map);
+                    assert!(matches!(plan, plan::FramePlan::Composite { .. }));
+                    let got = plan::execute_cpu(&plan);
+                    let reference = render_sequence(&p, seq, rate.tick_of(f), opts, &map);
+                    let max = got.px.iter().zip(&reference.px).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+                    assert!(max < 1e-5, "reverse {reverse}, scale {scale}, missing {missing}, frame {f}: {max}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn morph_cut_frames_render_on_the_cpu_with_the_morph() {
+    // the GPU compositor can only cross-fade layers: a Morph Cut frame is planned whole on the
+    // CPU, so preview and export show the optical-flow morph, not a dissolve
+    let (mut p, red, ocean, seq, map) = setup();
+    let a = place(&mut p, seq, 0, red, 0, 24);
+    let b = place(&mut p, seq, 0, ocean, 24, 24);
+    let rate = FrameRate::FPS_24;
+    p.sequence_mut(seq).unwrap().video_tracks[0].transitions.push(filmcraft_project::Transition {
+        id: filmcraft_project::TransitionId(998),
+        effect: filmcraft_project::find_effect("morph_cut").unwrap().instance(),
+        start: rate.tick_of(18),
+        duration: rate.tick_of(12),
+        from: Some(a),
+        to: Some(b),
+        align: Default::default(),
+        reverse: false,
+    });
+    let opts = RenderOptions { scale: 0.5, ..Default::default() };
+    assert!(plan::is_cpu_frame(&p, seq, rate.tick_of(24), opts, plan::DeviceCaps::ALL));
+    assert!(!plan::is_cpu_frame(&p, seq, rate.tick_of(10), opts, plan::DeviceCaps::ALL), "outside the transition the frame stays on the GPU");
+    let plan = plan::plan_frame(&p, seq, rate.tick_of(24), opts, plan::DeviceCaps::ALL, &map);
+    assert!(matches!(plan, plan::FramePlan::Image(_)));
+    assert_eq!(plan::execute_cpu(&plan).px, render_sequence(&p, seq, rate.tick_of(24), opts, &map).px);
 }
 
 /// A project with a 4 s bars-and-tone clip (1 kHz at −20 dBFS) on A1, with extra audio effects.
@@ -216,7 +297,7 @@ fn tone_with(effects: &[(&str, &[(&str, f64)])]) -> (Project, ItemId, SourceMap)
     let id = p.add_item(
         "bars",
         Label::Iris,
-        ItemKind::Media(MediaClip {
+        ItemKind::Media(Box::new(MediaClip {
             media: MediaRef::Generator(Generator::BarsAndTone),
             info,
             interpret: Default::default(),
@@ -226,7 +307,7 @@ fn tone_with(effects: &[(&str, &[(&str, f64)])]) -> (Project, ItemId, SourceMap)
             offline: false,
             proxy: None,
             identity: None,
-        }),
+        })),
         None,
     );
     let mut map = SourceMap::default();
@@ -336,7 +417,7 @@ fn draft_reduced_resolution_plans_carry_decimated_yuv() {
     for draft in [false, true] {
         for (scale, small_w) in [(1.0f32, 320u32), (0.5, 160), (0.25, 80)] {
             let opts = RenderOptions { scale, ..Default::default() };
-            let plan = filmcraft_media::cancel::with_draft(draft, || plan::plan_frame(&p, seq, t, opts, &map));
+            let plan = filmcraft_media::cancel::with_draft(draft, || plan::plan_frame(&p, seq, t, opts, plan::DeviceCaps::ALL, &map));
             let plan::FramePlan::Layers { layers, .. } = &plan else { panic!("GPU-drawable") };
             // exact playback hands over the decoded picture; draft playback planes at the drawn size
             assert_eq!(layers[0].frame.width, if draft { small_w } else { 320 }, "scale {scale}, draft {draft}");
@@ -347,6 +428,188 @@ fn draft_reduced_resolution_plans_carry_decimated_yuv() {
             let max = got.px.iter().zip(&reference.px).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
             // the Y'CbCr-code mean differs from a linear-light mean by a little on gradients
             assert!(max < if draft { 0.03 } else { 1e-5 }, "scale {scale}, draft {draft}: max diff {max}");
+        }
+    }
+}
+
+/// A damaged project can hold a multi-camera clip whose angle is the clip itself. Planning and
+/// rendering its frame must end: the plan's multi-camera shortcut used to recurse until the stack
+/// overflowed.
+#[test]
+fn a_multicam_clip_showing_itself_plans_and_renders_to_an_end() {
+    let mut p = Project::new("cycle");
+    let a = p.new_sequence("a", SequenceSettings::default(), 1, 0, None);
+    let rate = FrameRate::default();
+    let mut it = p.make_track_item(a, TrackKind::Video, Tick::ZERO, TimeRange::new(Tick::ZERO, Tick(TICKS_PER_SECOND)), rate).unwrap();
+    it.multicam = Some(filmcraft_project::multicam::MulticamSel { enabled: true, angle: 0 });
+    p.sequence_mut(a).unwrap().video_tracks[0].items.push(it);
+    let opts = RenderOptions { scale: 0.1, ..Default::default() };
+    let sources = SourceMap::default();
+    let img = plan::execute_cpu(&plan::plan_frame(&p, a, Tick::ZERO, opts, plan::DeviceCaps::ALL, &sources));
+    assert!(img.w > 0 && img.h > 0);
+    let img = render_sequence(&p, a, Tick::ZERO, opts, &sources);
+    assert!(img.w > 0 && img.h > 0);
+}
+
+/// A 24 fps source that picks frames like the MP4 reader: the requested time is converted to the
+/// track timescale rounding to the nearest unit, then the frame at or before it is shown. It
+/// records the frames it was asked for.
+struct NearestUnitSource {
+    inner: GeneratorSource,
+    asked: std::sync::Mutex<Vec<i64>>,
+}
+
+impl MediaSource for NearestUnitSource {
+    fn info(&self) -> &filmcraft_media::MediaInfo {
+        self.inner.info()
+    }
+    fn video_frame(&self, req: FrameRequest) -> filmcraft_media::Result<Arc<filmcraft_frame::VideoFrame>> {
+        // 12288 units a second: 512 a frame at 24 fps
+        let units = req.time.to_rational_round(1, 12_288);
+        self.asked.lock().unwrap().push(units.div_euclid(512));
+        self.inner.video_frame(req)
+    }
+    fn audio(&self, start: i64, frames: usize, sample_rate: u32) -> filmcraft_media::Result<filmcraft_frame::AudioBuffer> {
+        self.inner.audio(start, frames, sample_rate)
+    }
+}
+
+/// #318: a trimmed clip (source frames 10–29) played in reverse shows 29 down to 10. Its source
+/// time is the instant just before the mirrored position; a reader that rounds to the nearest
+/// timescale unit used to land on the next frame, showing frame 30 (outside the clip) and never 10.
+#[test]
+fn a_reversed_clip_shows_exactly_its_source_range() {
+    let r = FrameRate::FPS_24;
+    let mut p = Project::new("r");
+    let g = GeneratorSource::new(Generator::ColorMatte { color: [0.2, 0.4, 0.6, 1.0] }, 64, 64, r, Tick(4 * TICKS_PER_SECOND));
+    let info = g.info().clone();
+    let item = p.add_item(
+        "ids",
+        Label::Iris,
+        ItemKind::Media(Box::new(MediaClip {
+            media: MediaRef::Generator(g.generator.clone()),
+            info,
+            interpret: Default::default(),
+            mark_in: None,
+            mark_out: None,
+            markers: vec![],
+            offline: false,
+            proxy: None,
+            identity: None,
+        })),
+        None,
+    );
+    let src = Arc::new(NearestUnitSource { inner: g, asked: Default::default() });
+    let mut map = SourceMap::default();
+    map.0.insert(item, src.clone() as SharedSource);
+    let seq = p.new_sequence("s", SequenceSettings { width: 64, height: 64, frame_rate: r, ..Default::default() }, 1, 0, None);
+    let ti = p.make_track_item(item, TrackKind::Video, Tick::ZERO, TimeRange::new(r.tick_of(10), r.tick_of(20)), r).unwrap();
+    let id = ti.id;
+    p.sequence_mut(seq).unwrap().video_tracks[0].items.push(ti);
+    let opts = RenderOptions { scale: 1.0, ..Default::default() };
+    let shown = |p: &Project, f: i64, planned: bool| -> Vec<i64> {
+        src.asked.lock().unwrap().clear();
+        if planned {
+            plan::execute_cpu(&plan::plan_frame(p, seq, r.tick_of(f), opts, plan::DeviceCaps::ALL, &map));
+        } else {
+            render_sequence(p, seq, r.tick_of(f), opts, &map);
+        }
+        let mut asked = src.asked.lock().unwrap().clone();
+        asked.dedup();
+        asked
+    };
+    // forward control: 10, 17, 29
+    for (f, want) in [(0, 10), (7, 17), (19, 29)] {
+        for planned in [false, true] {
+            assert_eq!(shown(&p, f, planned), [want], "forward, timeline frame {f}, planned {planned}");
+        }
+    }
+    p.sequence_mut(seq).unwrap().find_item_mut(id).unwrap().1.reverse = true;
+    for (f, want) in [(0, 29), (7, 22), (19, 10)] {
+        for planned in [false, true] {
+            assert_eq!(shown(&p, f, planned), [want], "reversed, timeline frame {f}, planned {planned}");
+        }
+    }
+    // every timeline frame stays inside the clip's source range, each source frame shown once
+    let all: Vec<i64> = (0..20).flat_map(|f| shown(&p, f, false)).collect();
+    assert_eq!(all, (10..=29).rev().collect::<Vec<_>>());
+}
+
+#[test]
+fn over_black_rows_match_the_per_value_conversion() {
+    let mut v: Vec<f32> = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.0, 0.0, 1.0, 0.499_999_97, 1e-30, 0.999_999_9, 2.0, -1.0].to_vec();
+    // every table boundary and alpha half step, and the floats just around them
+    for k in 0..=4095 * 2 {
+        let b = (k as f32 * 0.5) / 4095.0;
+        v.extend([b, f32::from_bits(b.to_bits() + 1), f32::from_bits(b.to_bits().saturating_sub(1))]);
+    }
+    for k in 0..=255 * 2 {
+        let b = (k as f32 * 0.5) / 255.0;
+        v.extend([b, f32::from_bits(b.to_bits() + 1), f32::from_bits(b.to_bits().saturating_sub(1))]);
+    }
+    // a spread over all finite floats from 0 to 1
+    v.extend((0..1u32 << 16).map(|k| f32::from_bits((k * 0x3f80) % 0x3f80_0001)));
+    v.truncate(v.len() / 4 * 4);
+    let (mut opaque, mut with_alpha) = (vec![0; v.len()], vec![0; v.len()]);
+    crate::image::over_black_row(&v, &mut opaque, false);
+    crate::image::over_black_row(&v, &mut with_alpha, true);
+    for (i, s) in v.iter().enumerate() {
+        let want = if i % 4 == 3 { (s.clamp(0.0, 1.0) * 255.0).round() as u8 } else { filmcraft_color::linear_to_srgb_u8(*s) };
+        assert_eq!(with_alpha[i], want, "{s:e} at {i}");
+        assert_eq!(opaque[i], if i % 4 == 3 { 255 } else { want }, "{s:e} at {i}");
+    }
+}
+
+#[test]
+fn a_still_image_needs_no_in_between_frame() {
+    // a still reports 29.97 fps, so in a 23.976 sequence at 100 % it looks like a frame rate
+    // conform, but its one picture needs neither Frame Blending nor Optical Flow (#3948)
+    let (mut p, red, _, _, _) = setup();
+    let rate = FrameRate::FPS_23_976;
+    let mut it = p.make_track_item(red, TrackKind::Video, Tick::ZERO, TimeRange::new(Tick::ZERO, rate.tick_of(48)), rate).unwrap();
+    it.time_interpolation = filmcraft_project::TimeInterpolation::OpticalFlow;
+    let t = rate.tick_of(1);
+    let still: SharedSource = Arc::new(filmcraft_media::still::StillSource::from_rgba("still.png", 4, 4, vec![128; 64], false, 64));
+    assert_eq!(still.info().frame_rate(), FrameRate::FPS_29_97);
+    assert!(interpolation_blend(&it, t, FrameRate::FPS_29_97, rate).is_some());
+    assert!(media_interpolation(&it, t, &still, rate).is_none());
+    // a 29.97 source that is not a still still gets the in-between frame
+    let movie: SharedSource =
+        Arc::new(GeneratorSource::new(Generator::ColorMatte { color: [1.0; 4] }, 4, 4, FrameRate::FPS_29_97, Tick(10 * TICKS_PER_SECOND)));
+    let (_, w) = media_interpolation(&it, t, &movie, rate).unwrap();
+    assert!((w - 0.25).abs() < 1e-3, "a quarter into the source frame: {w}");
+}
+
+#[test]
+fn in_between_frames_stay_inside_the_source_range() {
+    // the later frame of a Frame Blending / Optical Flow pair never comes from the clip's source
+    // out on: a reversed clip starts just before it, and a forward one can end next to it (#3948)
+    let (mut p, red, _, _, _) = setup();
+    let src = FrameRate::FPS_23_976;
+    let mut it = p.make_track_item(red, TrackKind::Video, Tick::ZERO, TimeRange::new(Tick::ZERO, Tick(TICKS_PER_SECOND)), src).unwrap();
+    it.time_interpolation = filmcraft_project::TimeInterpolation::FrameBlending;
+    it.source_in = src.tick_of(10);
+    // 100 % on 29.97 moves 0.8 of a source frame per frame, so 5 frames end exactly on source frame
+    // 14; 50 % at the media's own rate ends half-way into frame 13 (7 frames) or on frame 14 (8)
+    for (seq, speed, frames) in [(FrameRate::FPS_29_97, 1.0, 5), (src, 0.5, 7), (src, 0.5, 8)] {
+        for reverse in [false, true] {
+            it.speed = speed;
+            it.reverse = reverse;
+            it.start = seq.tick_of(3);
+            it.duration = seq.tick_of(frames);
+            let (source_in, out) = (it.source_in, it.source_out());
+            let mut blended = 0;
+            for k in 0..frames {
+                let t = seq.tick_of(3 + k);
+                if let Some((next, w)) = interpolation_blend(&it, t, src, seq) {
+                    assert!(
+                        next > source_in && next < out,
+                        "{seq:?} at {speed}, reverse {reverse}, frame {k}: next {next:?} outside {source_in:?}..{out:?} (w {w})"
+                    );
+                    blended += 1;
+                }
+            }
+            assert!(blended > 0, "{seq:?} at {speed}, reverse {reverse}: no frame blended");
         }
     }
 }

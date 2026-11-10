@@ -35,6 +35,9 @@ fn join_error(e: tokio::task::JoinError) -> AutomationError {
 #[derive(Clone)]
 pub struct FilmcraftMcp {
     backend: Arc<Backend>,
+    /// Bridge `render_frame` moves the app's one playhead and screenshots the one Program monitor, so
+    /// calls (which MCP clients may send in parallel) take turns instead of seeing each other's frame.
+    render_lock: Arc<tokio::sync::Mutex<()>>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -108,7 +111,7 @@ pub struct ClickParams {
     /// left | right | middle
     #[serde(default)]
     pub button: Option<String>,
-    /// 2 for double-click.
+    /// Number of clicks (0–10; defaults to 1). Use 2 for double-click. Larger values are rejected.
     #[serde(default)]
     pub count: Option<u32>,
     /// {"shift":bool,"alt":bool,"command":bool,"ctrl":bool}
@@ -122,6 +125,7 @@ pub struct DragParams {
     pub from: Value,
     /// End point, same forms.
     pub to: Value,
+    /// Movement steps (0–1024; defaults to 12; 0 or 1 uses 2). Larger values are rejected.
     #[serde(default)]
     pub steps: Option<u32>,
     #[serde(default)]
@@ -137,6 +141,30 @@ pub struct KeyParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct TypeParams {
     pub text: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct MediaImportParams {
+    /// Absolute paths to media files (MP4/MOV, WAV/MP3/FLAC/AIFF/Ogg, PNG/JPEG/…).
+    pub paths: Vec<String>,
+    /// Bin ID to import into (optional).
+    #[serde(default)]
+    pub bin: Option<u64>,
+    /// Import numbered stills as an image sequence (optional, default false).
+    #[serde(default)]
+    pub image_sequence: Option<bool>,
+}
+
+/// `file.import` params for a `media_import` call.
+fn media_import_params(p: MediaImportParams) -> Value {
+    let mut params = json!({"paths": p.paths});
+    if let Some(bin) = p.bin {
+        params["bin"] = json!(bin);
+    }
+    if let Some(seq) = p.image_sequence {
+        params["imageSequence"] = json!(seq);
+    }
+    params
 }
 
 #[derive(Debug, Default, Deserialize, JsonSchema)]
@@ -170,12 +198,15 @@ fn wrap(r: Result<Value, AutomationError>) -> Result<CallToolResult, McpError> {
     })
 }
 
+/// Parse-error replies queued for the writer before the reader waits for it to catch up.
+const MAX_QUEUED_PARSE_ERRORS: usize = 64;
+
 impl FilmcraftMcp {
     pub fn headless(session: Session) -> Self {
-        Self { backend: Arc::new(Backend::Headless(Arc::new(Mutex::new(session)))), tool_router: Self::tool_router() }
+        Self { backend: Arc::new(Backend::Headless(Arc::new(Mutex::new(session)))), render_lock: Arc::default(), tool_router: Self::tool_router() }
     }
     pub fn bridge(addr: &str) -> Result<Self, AutomationError> {
-        Ok(Self { backend: Arc::new(Backend::Bridge(Arc::new(BridgeClient::new(addr)?))), tool_router: Self::tool_router() })
+        Ok(Self { backend: Arc::new(Backend::Bridge(Arc::new(BridgeClient::new(addr)?))), render_lock: Arc::default(), tool_router: Self::tool_router() })
     }
 
     pub async fn serve_stdio(self) -> Result<(), AutomationError> {
@@ -184,7 +215,9 @@ impl FilmcraftMcp {
 
     /// Serve MCP over any line stream. A line that isn't JSON gets a JSON-RPC parse error
     /// (`-32700`, id null) instead of being dropped silently; the rest go to the rmcp service. One
-    /// writer task owns `output`, so replies never interleave.
+    /// writer task owns `output`, so replies never interleave. Parse errors wait for room in a
+    /// small queue before more input is read: a client that sends junk and never reads its output
+    /// stalls its own input instead of growing the server's memory.
     pub async fn serve_io(
         self,
         input: impl tokio::io::AsyncRead + Unpin + Send + 'static,
@@ -193,10 +226,15 @@ impl FilmcraftMcp {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         let (mut to_service, service_in) = tokio::io::duplex(1 << 20);
         let (service_out, from_service) = tokio::io::duplex(1 << 20);
-        let (err_tx, mut err_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let (err_tx, mut err_rx) = tokio::sync::mpsc::channel::<String>(MAX_QUEUED_PARSE_ERRORS);
         let reader = tokio::spawn(async move {
             let mut lines = BufReader::new(input).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
+            // `err_tx.closed()`: the writer is gone (output failed), so stop forwarding requests whose replies cannot be delivered.
+            loop {
+                let line = tokio::select! {
+                    l = lines.next_line() => match l { Ok(Some(l)) => l, _ => break },
+                    () = err_tx.closed() => break,
+                };
                 if line.trim().is_empty() {
                     continue;
                 }
@@ -208,7 +246,10 @@ impl FilmcraftMcp {
                     }
                     Err(e) => {
                         let reply = json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": format!("parse error: {e}")}});
-                        let _ = err_tx.send(reply.to_string());
+                        // the writer is gone (output failed): stop reading
+                        if err_tx.send(reply.to_string()).await.is_err() {
+                            break;
+                        }
                     }
                 }
             }
@@ -249,14 +290,27 @@ impl FilmcraftMcp {
                 .await
                 .map_err(join_error)?
             }
-            Backend::Bridge(b) => b.call("engine.execute", json!({"command": id, "params": params})).await,
+            Backend::Bridge(b) => b.execute(id, params).await,
         }
     }
 
     /// The project tree plus the active sequence (null when there is none).
+    ///
+    /// `project.inspect` and `sequence.inspect` are two separate calls (two lock scopes in
+    /// headless mode, two round trips to the app in bridge mode), so the active sequence can
+    /// change between them if another client, or the app's own UI, switches sequence tabs in
+    /// that window (#1477). Pinning `sequence.inspect` to the `activeSequence` id this
+    /// `project.inspect` just reported keeps the pair consistent: the returned `sequence`, when
+    /// not null, always describes the sequence the returned `project.activeSequence` names.
     async fn document(&self) -> Result<Value, AutomationError> {
         let project = self.run("project.inspect", json!({})).await?;
-        let sequence = self.run("sequence.inspect", json!({})).await.ok();
+        // `ItemId` is a u64 (`item_p` parses the `item` param with `u64_p`): read it as one too,
+        // not `as_i64`, so an id above `i64::MAX` is still looked up instead of silently going null.
+        let active = project.get("activeSequence").and_then(Value::as_u64);
+        let sequence = match active {
+            Some(id) => self.run("sequence.inspect", json!({"item": id})).await.ok(),
+            None => None,
+        };
         Ok(json!({"project": project, "sequence": sequence}))
     }
 
@@ -381,9 +435,8 @@ impl FilmcraftMcp {
         description = "Import media files by absolute path (MP4/MOV, WAV/MP3/FLAC/AIFF/Ogg, PNG/JPEG/…).",
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
-    async fn media_import(&self, Parameters(p): Parameters<TypeParams>) -> Result<CallToolResult, McpError> {
-        let paths: Vec<&str> = p.text.split('\n').map(str::trim).filter(|s| !s.is_empty()).collect();
-        wrap(self.run("file.import", json!({"paths": paths})).await)
+    async fn media_import(&self, Parameters(p): Parameters<MediaImportParams>) -> Result<CallToolResult, McpError> {
+        wrap(self.run("file.import", media_import_params(p)).await)
     }
 
     #[tool(
@@ -397,14 +450,13 @@ impl FilmcraftMcp {
             Backend::Headless(s) => {
                 let s = s.clone();
                 let r = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, AutomationError> {
-                    let mut g = s.lock().unwrap_or_else(PoisonError::into_inner);
-                    if let Some(sec) = p.seconds {
-                        g.set_playhead(filmcraft_time::Tick::from_seconds_f64(sec));
-                    }
+                    let g = s.lock().unwrap_or_else(PoisonError::into_inner);
+                    // read-only: render at `seconds` without moving the playhead (#114)
+                    let t = p.seconds.map_or_else(|| g.playhead(), filmcraft_time::Tick::from_seconds_f64);
                     let (w, h) =
                         g.active_sequence().map(|q| (q.settings.width, q.settings.height)).ok_or_else(|| AutomationError::Other("no sequence".into()))?;
-                    let scale = (max as f32 / w.max(h) as f32).min(1.0);
-                    let img = g.render_program(scale).ok_or_else(|| AutomationError::Other("no sequence".into()))?;
+                    let scale = render_scale(max, w, h);
+                    let img = g.try_render_program_at(scale, t).map_err(|e| AutomationError::Other(e.to_string()))?;
                     png_rgba(img.w as u32, img.h as u32, img.over_black_rgba8(), max)
                 })
                 .await
@@ -415,12 +467,33 @@ impl FilmcraftMcp {
                 })
             }
             Backend::Bridge(b) => {
-                if let Some(sec) = p.seconds
-                    && let Err(e) = b.call("engine.execute", json!({"command": "playhead.set", "params": {"seconds": sec}})).await
-                {
+                // held until the playhead is back, also for the no-`seconds` screenshot, which must not catch another call's seek
+                let _turn = self.render_lock.lock().await;
+                let Some(sec) = p.seconds else {
+                    return self.screenshot(&b.clone(), Some("Program".into()), max).await;
+                };
+                // The Program monitor shows the playhead's frame, so the live playhead has to move
+                // for the screenshot; put it (and the selection, which may follow it) back after,
+                // so the tool stays read-only (#114).
+                let before = match self.run("sequence.inspect", json!({})).await {
+                    Ok(v) => v,
+                    Err(e) => return Ok(fail(e)),
+                };
+                if let Err(e) = self.run("playhead.set", json!({"seconds": sec})).await {
                     return Ok(fail(e));
                 }
-                self.screenshot(&b.clone(), Some("Program".into()), max).await
+                let shot = self.screenshot(&b.clone(), Some("Program".into()), max).await;
+                if let Some(t) = before.get("playhead").and_then(Value::as_i64) {
+                    let _ = self.run("playhead.set", json!({"time": t})).await;
+                }
+                // only when it changed: selecting also leaves trim mode
+                let now = self.run("sequence.inspect", json!({})).await.ok();
+                if let Some(sel) = before.get("selection").filter(|v| v.is_array())
+                    && now.as_ref().and_then(|n| n.get("selection")) != Some(sel)
+                {
+                    let _ = self.run("timeline.select", json!({"clips": sel})).await;
+                }
+                shot
             }
         }
     }
@@ -443,6 +516,7 @@ impl FilmcraftMcp {
         self.ui("ui.elements", json!({"prefix": p.prefix.unwrap_or_default()})).await
     }
 
+    /// Forward a click to the live editor; an omitted count is sent as null and uses its default.
     #[tool(
         title = "Live app: click",
         description = "Live app: click an element by id or at x,y (points). Supports right/middle button, double-click (count=2) and modifiers.",
@@ -459,6 +533,7 @@ impl FilmcraftMcp {
         self.ui("ui.click", v).await
     }
 
+    /// Forward a drag to the live editor, which applies the step default and validates its bounds.
     #[tool(
         title = "Live app: drag",
         description = "Live app: press-drag-release from one point/element to another (move clips, trim edges, scrub, resize panels, drop project items onto tracks).",
@@ -510,15 +585,21 @@ impl FilmcraftMcp {
 
 impl FilmcraftMcp {
     async fn screenshot(&self, b: &BridgeClient, panel: Option<String>, max: u32) -> Result<CallToolResult, McpError> {
-        let path = std::env::temp_dir().join(format!("filmcraft-mcp-{}.png", std::process::id()));
+        // The desktop bridge needs a pathname, so use a freshly-created,
+        // owner-only directory rather than exposing image bytes at a
+        // predictable shared-temp filename.
+        let dir = match tempfile::tempdir() {
+            Ok(dir) => dir,
+            Err(e) => return Ok(fail(format!("screenshot: {e}"))),
+        };
+        let path = dir.path().join("screenshot.png");
         if let Err(e) = b.call("ui.screenshot", json!({"path": path.to_string_lossy(), "panel": panel})).await {
             return Ok(fail(e));
         }
-        let bytes = match std::fs::read(&path) {
+        let bytes = match tokio::fs::read(&path).await {
             Ok(b) => b,
             Err(e) => return Ok(fail(format!("screenshot: {e}"))),
         };
-        let _ = std::fs::remove_file(&path);
         let bytes = match image::load_from_memory(&bytes) {
             Ok(img) => {
                 let rgba = img.to_rgba8();
@@ -574,8 +655,8 @@ impl ServerHandler for FilmcraftMcp {
             return Err(McpError::invalid_params(m, None));
         }
         // A blocking export reports progress and can be cancelled (docs/agents.md § Long exports).
+        // Bridge mode too: the app runs it as a job, so it stays responsive (#91, #92).
         if request.name == "command_run"
-            && matches!(&*self.backend, Backend::Headless(_))
             && let Some(a) = &request.arguments
             && let Some(id) = a.get("id").and_then(Value::as_str)
         {
@@ -630,263 +711,13 @@ impl ServerHandler for FilmcraftMcp {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn headless_commands_and_render() {
-        let mut s = Session::default();
-        s.execute("file.openDemoProject", json!({})).unwrap();
-        let m = FilmcraftMcp::headless(s);
-        let v = m.run("sequence.addEditAllTracks", json!({"seconds": 2.0})).await.unwrap();
-        assert!(v["cuts"].as_u64().unwrap() >= 2);
-        let r = m.render_frame(Parameters(RenderParams { seconds: Some(1.0), max_side: Some(320) })).await.unwrap();
-        assert_ne!(r.is_error, Some(true));
+/// Render scale that fits the longest side of a `w` x `h` sequence into `max_side` (never upscales; 0 = no limit, as in `png_rgba`).
+fn render_scale(max_side: u32, w: u32, h: u32) -> f32 {
+    if max_side == 0 {
+        return 1.0;
     }
-
-    /// One request/response exchange over `serve_io`, as an MCP client sees it.
-    struct Client {
-        tx: tokio::io::DuplexStream,
-        rx: tokio::io::Lines<tokio::io::BufReader<tokio::io::DuplexStream>>,
-    }
-
-    impl Client {
-        fn start(s: Session) -> Self {
-            use tokio::io::AsyncBufReadExt;
-            let (tx, server_in) = tokio::io::duplex(1 << 22);
-            let (server_out, rx) = tokio::io::duplex(1 << 22);
-            tokio::spawn(FilmcraftMcp::headless(s).serve_io(server_in, server_out));
-            Self { tx, rx: tokio::io::BufReader::new(rx).lines() }
-        }
-        async fn send(&mut self, line: &str) {
-            use tokio::io::AsyncWriteExt;
-            self.tx.write_all(format!("{line}\n").as_bytes()).await.unwrap();
-        }
-        async fn next(&mut self) -> Value {
-            serde_json::from_str(&self.rx.next_line().await.unwrap().unwrap()).unwrap()
-        }
-        async fn ask(&mut self, msg: Value) -> Value {
-            self.send(&msg.to_string()).await;
-            self.next().await
-        }
-        async fn init(&mut self) -> Value {
-            let r = self.ask(json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}})).await;
-            self.send(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}).to_string()).await;
-            r
-        }
-        async fn call(&mut self, id: u64, name: &str, arguments: Value) -> Value {
-            self.ask(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}})).await
-        }
-    }
-
-    fn demo() -> Session {
-        let mut s = Session::default();
-        s.execute("file.openDemoProject", json!({})).unwrap();
-        s
-    }
-
-    /// Every listed tool has a title and the four hints, and the core tools are listed.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn tools_are_titled_and_annotated() {
-        let mut c = Client::start(demo());
-        let init = c.init().await;
-        assert_eq!(init["result"]["serverInfo"]["name"], "filmcraft");
-        let tools = c.ask(json!({"jsonrpc":"2.0","id":1,"method":"tools/list"})).await["result"]["tools"].as_array().cloned().unwrap();
-        for t in &tools {
-            assert!(t["title"].is_string(), "{} has no title", t["name"]);
-            for h in ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"] {
-                assert!(t["annotations"][h].is_boolean(), "{} lacks {h}", t["name"]);
-            }
-        }
-        let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
-        for want in ["command_list", "command_run", "command_batch", "doc_inspect", "render_preview", "project_inspect", "render_frame", "ui_click"] {
-            assert!(names.contains(&want), "{want} not listed");
-        }
-        let ro = |n: &str| tools.iter().find(|t| t["name"] == n).map(|t| t["annotations"]["readOnlyHint"].clone());
-        assert_eq!((ro("command_list"), ro("command_run")), (Some(json!(true)), Some(json!(false))));
-    }
-
-    /// Strict arguments, malformed JSON, batch, doc_inspect and render_preview over the raw line
-    /// protocol.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn strict_arguments_and_parse_errors() {
-        let mut c = Client::start(demo());
-        c.init().await;
-        let r = c.call(1, "command_list", json!({"filter": "razor", "enabled_only": true})).await;
-        assert!(r["result"]["content"][0]["text"].as_str().unwrap().contains("timeline.razor"), "{r}");
-        // an unknown argument names itself and the accepted ones
-        let r = c.call(2, "command_list", json!({"filtr": "x"})).await;
-        assert_eq!(r["error"]["code"], -32602, "{r}");
-        let m = r["error"]["message"].as_str().unwrap();
-        assert!(m.contains("\"filtr\"") && m.contains("filter") && m.contains("enabled_only"), "{m}");
-        let r = c.call(3, "doc_inspect", json!({"verbose": true})).await;
-        assert_eq!(r["error"]["code"], -32602, "{r}");
-        // command params stay free-form
-        let r = c.call(4, "command_run", json!({"id": "playhead.set", "params": {"seconds": 0.5}})).await;
-        assert_eq!(r["result"]["isError"], false, "{r}");
-        // malformed JSON: a parse error, and the server keeps serving
-        c.send("{\"jsonrpc\": \"2.0\", \"id\": 5, BROKEN").await;
-        let r = c.next().await;
-        assert_eq!((r["error"]["code"].as_i64(), r["id"].is_null()), (Some(-32700), true), "{r}");
-        let r = c.ask(json!({"jsonrpc":"2.0","id":6,"method":"ping"})).await;
-        assert!(r["result"].is_object(), "{r}");
-        // batch: stops at the first failure and reports both
-        let r =
-            c.call(7, "command_batch", json!({"steps": [{"id": "playhead.set", "params": {"seconds": 0.5}}, {"id": "no.such"}, {"id": "playhead.set"}]})).await;
-        assert_eq!(r["result"]["isError"], true, "{r}");
-        let v: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-        assert_eq!((v["completed"].as_u64(), v["failed"].as_u64(), v["results"].as_array().map(Vec::len)), (Some(1), Some(1), Some(2)), "{v}");
-        let r = c.call(8, "doc_inspect", json!({})).await;
-        let v: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-        assert!(v["project"].is_object() && v["sequence"].is_object(), "{v}");
-        let r = c.call(9, "render_preview", json!({"max_side": 64})).await;
-        assert_eq!(r["result"]["content"][0]["type"], "image", "{r}");
-    }
-
-    /// `filmcraft://document` and `filmcraft://commands` are listed and readable as JSON.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn resources_document_and_commands() {
-        let mut c = Client::start(demo());
-        let init = c.init().await;
-        assert!(init["result"]["capabilities"]["resources"].is_object(), "{init}");
-        assert!(init["result"]["instructions"].as_str().unwrap().contains("doc_inspect"), "{init}");
-        let r = c.ask(json!({"jsonrpc":"2.0","id":1,"method":"resources/list"})).await;
-        let uris: Vec<&str> = r["result"]["resources"].as_array().unwrap().iter().filter_map(|x| x["uri"].as_str()).collect();
-        assert_eq!(uris, [DOCUMENT_URI, COMMANDS_URI], "{r}");
-        let r = c.ask(json!({"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":DOCUMENT_URI}})).await;
-        assert_eq!(r["result"]["contents"][0]["mimeType"], "application/json", "{r}");
-        let v: Value = serde_json::from_str(r["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
-        assert!(v["project"].is_object() && v["sequence"].is_object(), "{v}");
-        let r = c.ask(json!({"jsonrpc":"2.0","id":3,"method":"resources/read","params":{"uri":COMMANDS_URI}})).await;
-        assert!(r["result"]["contents"][0]["text"].as_str().unwrap().contains("timeline.razor"), "{r}");
-        let r = c.ask(json!({"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"filmcraft://nope"}})).await;
-        assert!(r["error"]["code"].is_i64(), "{r}");
-    }
-
-    /// MCP 2026-07-28 clients (current Claude Code) negotiate per request and reject list and read
-    /// results without `resultType`, `ttlMs` and `cacheScope`; sessions that negotiated an older
-    /// revision through `initialize` get the old shape.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn modern_clients_get_result_type_and_cache_hints() {
-        let mut c = Client::start(Session::default());
-        let meta = json!({
-            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-            "io.modelcontextprotocol/clientInfo": {"name": "t", "version": "1"},
-            "io.modelcontextprotocol/clientCapabilities": {},
-        });
-        let r = c.ask(json!({"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":meta}})).await;
-        assert!(r["result"]["supportedVersions"].as_array().unwrap().contains(&json!("2026-07-28")), "{r}");
-        for (id, method, params) in [
-            (2, "tools/list", json!({"_meta": meta})),
-            (3, "resources/list", json!({"_meta": meta})),
-            (4, "resources/read", json!({"_meta": meta, "uri": DOCUMENT_URI})),
-        ] {
-            let r = c.ask(json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})).await;
-            assert_eq!(r["result"]["resultType"], "complete", "{method}: {r}");
-            assert!(r["result"]["ttlMs"].is_u64(), "{method}: {r}");
-            assert!(matches!(r["result"]["cacheScope"].as_str(), Some("public" | "private")), "{method}: {r}");
-        }
-        let mut c = Client::start(Session::default());
-        c.init().await;
-        for (id, method, params) in [(2, "tools/list", json!({})), (3, "resources/list", json!({})), (4, "resources/read", json!({"uri": DOCUMENT_URI}))] {
-            let r = c.ask(json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})).await;
-            assert!(r["result"].is_object() && r["result"].get("resultType").is_none() && r["result"].get("ttlMs").is_none(), "{method}: {r}");
-        }
-    }
-
-    /// docs/agents.md § Long exports: a blocking export reports `notifications/progress` for its
-    /// token (none without one), answers `ping` meanwhile, and `notifications/cancelled` stops
-    /// it, deletes the partial file and sends no response.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn export_progress_and_cancel() {
-        let dir = std::env::temp_dir().join(format!("filmcraft-mcp-progress-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let mut c = Client::start(demo());
-        c.init().await;
-        let export = |id: u64, name: &str, token: Option<Value>, seconds: f64| {
-            let path = dir.join(name).to_string_lossy().to_string();
-            let params = json!({"path": path, "format": "h264", "width": 640, "height": 360, "audio": false, "range": "custom", "startSeconds": 0, "endSeconds": seconds, "wait": true});
-            let mut call =
-                json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"command_run","arguments":{"id":"file.exportMedia","params":params}}});
-            if let Some(t) = token {
-                call["params"]["_meta"] = json!({"progressToken": t});
-            }
-            call.to_string()
-        };
-        // no token: no notifications, the same response as before
-        c.send(&export(1, "quiet.mp4", None, 0.5)).await;
-        let m = c.next().await;
-        assert_eq!((m["id"].as_u64(), &m["result"]["isError"]), (Some(1), &json!(false)), "{m}");
-        // progress, strictly increasing, with a total; ping answered while the export runs
-        c.send(&export(2, "a.mp4", Some(json!("tok")), 1.0)).await;
-        let (mut last, mut notes, mut pinged, mut pong) = (-1.0, 0, false, false);
-        let done = loop {
-            let m = c.next().await;
-            if m["method"] == "notifications/progress" {
-                assert_eq!(m["params"]["progressToken"], "tok", "{m}");
-                let p = m["params"]["progress"].as_f64().unwrap();
-                assert!(p > last && m["params"]["total"].as_f64().unwrap() >= p, "{m}");
-                last = p;
-                notes += 1;
-                if !pinged {
-                    pinged = true;
-                    c.send(r#"{"jsonrpc":"2.0","id":3,"method":"ping"}"#).await;
-                }
-            } else if m["id"] == 3 {
-                pong = true;
-            } else if m["id"] == 2 {
-                break m;
-            }
-        };
-        assert_eq!(done["result"]["isError"], false, "{done}");
-        assert!(notes >= 2 && pong, "{notes} notifications, ping answered during the export: {pong}");
-        assert!(dir.join("a.mp4").exists());
-        // cancel after the first notification: no response, no partial file
-        c.send(&export(4, "b.mp4", Some(json!(7)), 8.0)).await;
-        loop {
-            let m = c.next().await;
-            assert_ne!(m["id"], 4, "finished before the cancel: {m}");
-            if m["method"] == "notifications/progress" {
-                break;
-            }
-        }
-        c.send(r#"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":4}}"#).await;
-        let t0 = std::time::Instant::now();
-        while dir.join("b.mp4").exists() || t0.elapsed() < std::time::Duration::from_millis(500) {
-            assert!(t0.elapsed().as_secs() < 30, "partial file still there");
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        c.send(r#"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"command_run","arguments":{"id":"jobs.list"}}}"#).await;
-        let m = loop {
-            let m = c.next().await;
-            assert_ne!(m["id"], 4, "no response for a cancelled request: {m}");
-            if m["id"] == 5 {
-                break m;
-            }
-        };
-        let jobs: Value = serde_json::from_str(m["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-        let last = jobs.as_array().and_then(|a| a.last()).cloned().unwrap_or_default();
-        assert_eq!(last["result"]["error"], "cancelled", "{jobs}");
-        assert!(!dir.join("b.mp4").exists());
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// A command that panicked used to poison the session lock, and every later call failed with
-    /// "session lock poisoned" until the server was restarted.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn a_poisoned_session_lock_keeps_serving() {
-        let m = FilmcraftMcp::headless(demo());
-        let Backend::Headless(s) = &*m.backend else { panic!("headless backend") };
-        let s = s.clone();
-        let _ = std::thread::spawn(move || {
-            let _g = s.lock().unwrap();
-            panic!("a command panicked");
-        })
-        .join();
-        let v = m.run("sequence.inspect", json!({})).await.unwrap();
-        assert!(v.is_object(), "{v}");
-        let r = m.render_frame(Parameters(RenderParams { seconds: Some(0.5), max_side: Some(64) })).await.unwrap();
-        assert_ne!(r.is_error, Some(true));
-    }
+    (max_side as f32 / w.max(h).max(1) as f32).min(1.0)
 }
+
+#[cfg(test)]
+mod tests;
