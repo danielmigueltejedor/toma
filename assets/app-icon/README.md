@@ -1,39 +1,23 @@
-# FilmCraft app icon
+# Toma app icon
 
-**Creature:** an owl with ear tufts, in a frontal head-and-shoulders portrait. It is the template the
-other Crafting App icons follow.
+**Figure:** Georges Méliès. A pioneer of film editing and special effects.
 
-## Palette
+**Style:** a black-and-white portrait cut out over a full-bleed colour field, head and shoulders, in
+the Nodalia icon family (one historical figure per app, one colour per app).
 
-Exactly three colours:
+**Tile:** 512 × 512 viewBox, rounded square `rx=112`, clipped; no border or roundel.
 
-| Colour | Hex | Used for |
-|---|---|---|
-| Ink | `#0b0b0c` | line work and the figure's contour |
-| Paper | `#efe9dc` | the figure (the owl) |
-| FilmCraft violet (app colour) | `#8b5cf6` | the full-bleed field behind the figure |
-
-## Geometry and style
-
-- A 512-unit viewBox tile, rounded square `rx=112`, with the app colour full bleed (no frame or border).
-- An engraving-style portrait in the owl-template framing: the top of the head near y 80–100, the
-  eyes at about 40 % of the height, and the shoulders running off the bottom edge.
-- macOS renders (`filmcraft.icns`, `filmcraft-macos-512.png`) put the tile in Apple's grid (824 of
-  1024 px, transparent margin). Windows, Linux and the web use the full-bleed tile.
-
-## Provenance
-
-The owner drew it in ArtCraft as a 2880 px engraving-style image. The original is kept in craftrules
-at `craftrules/assets/app-icons/filmcraft/source.png` (not in this repo). It was vectorised with
-craftrules `assets/logo-options/_tools/vectorize_tile.py`, which keys the drawing to the three-colour
-palette and traces the ink with potrace. Licence: [LICENSE.txt](LICENSE.txt) (MIT OR Apache-2.0).
+**Provenance:** the portrait is "Méliès portrait (cropped).png" from
+[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Méliès_portrait_(cropped).png) (public domain). The figure was separated from its
+background, converted to black and white and placed over the app colour.
+Licence: see [LICENSE.txt](LICENSE.txt).
 
 ## Files
 
 | File | What |
 |---|---|
-| `filmcraft.svg` | canonical artwork, traced at 2048 px (about 1 MB) |
-| `filmcraft-small.svg` | lighter trace at 1024 px (about 450 KB), for when size matters |
+| `filmcraft.svg` | master: the portrait as a 1024 px image embedded in an SVG with the tile clip (canonical) |
+| `filmcraft-small.svg` | lighter 512 px version; also the scalable Linux icon and the web favicon where there is one |
 | `filmcraft-1024.png` | 1024 px render |
 | `filmcraft-macos-512.png` | runtime Dock icon on macOS (embedded by `apps/filmcraft/src/main.rs`) |
 | `filmcraft.icns` | macOS bundle icon (`CFBundleIconFile`) |
@@ -54,7 +38,7 @@ The web app's `apps/filmcraft-web/web/favicon.png` (128 px) comes from the same 
 
 ## Regenerate
 
-`packaging/icons.sh` (needs `resvg`; `iconutil` on macOS for the `.icns`; the `.ico` is packed by
-`cargo xtask ico`). To change the artwork, replace `filmcraft.svg` and `filmcraft-small.svg` with new
-exports from craftrules, then run the script. Every derived file needs its `.attribution` sidecar
-and a row in `ATTRIBUTION.md`.
+The icon is a raster portrait, so the SVG files embed an image instead of traced paths. The
+derived files in this directory were rendered directly from the portrait. `packaging/icons.sh`
+still works on `filmcraft.svg` (resvg renders embedded images), but its output will differ slightly
+from the committed files in resampling.
