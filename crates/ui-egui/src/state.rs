@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::dock::{DockNode, PanelKind};
+use crate::dock::PanelKind;
 use crate::icons::Icon;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -25,10 +25,11 @@ pub enum Tool {
     Hand,
     Zoom,
     Type,
+    VerticalType,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 16] = [
+    pub const ALL: [Tool; 17] = [
         Tool::Selection,
         Tool::TrackSelectForward,
         Tool::TrackSelectBackward,
@@ -45,6 +46,7 @@ impl Tool {
         Tool::Hand,
         Tool::Zoom,
         Tool::Type,
+        Tool::VerticalType,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -64,26 +66,29 @@ impl Tool {
             Tool::Hand => "Hand Tool",
             Tool::Zoom => "Zoom Tool",
             Tool::Type => "Type Tool",
+            Tool::VerticalType => "Vertical Type Tool",
         }
     }
-    pub fn shortcut(self) -> &'static str {
-        match self {
-            Tool::Selection => "V",
-            Tool::TrackSelectForward => "A",
-            Tool::TrackSelectBackward => "Shift+A",
-            Tool::Ripple => "B",
-            Tool::Rolling => "N",
-            Tool::RateStretch => "R",
-            Tool::Remix => "",
-            Tool::Razor => "C",
-            Tool::Slip => "Y",
-            Tool::Slide => "U",
-            Tool::Pen => "P",
-            Tool::Rectangle | Tool::Ellipse => "",
-            Tool::Hand => "H",
-            Tool::Zoom => "Z",
-            Tool::Type => "T",
-        }
+    /// Shortcut command used by the keyboard editor for this tool, if any.
+    pub fn command_id(self) -> Option<&'static str> {
+        Some(match self {
+            Tool::Selection => "tool.selection",
+            Tool::TrackSelectForward => "tool.trackSelectForward",
+            Tool::TrackSelectBackward => "tool.trackSelectBackward",
+            Tool::Ripple => "tool.ripple",
+            Tool::Rolling => "tool.rolling",
+            Tool::RateStretch => "tool.rateStretch",
+            Tool::Remix => "tool.remix",
+            Tool::Razor => "tool.razor",
+            Tool::Slip => "tool.slip",
+            Tool::Slide => "tool.slide",
+            Tool::Pen => "tool.pen",
+            Tool::Rectangle | Tool::Ellipse => return None,
+            Tool::Hand => "tool.hand",
+            Tool::Zoom => "tool.zoom",
+            Tool::Type => "tool.type",
+            Tool::VerticalType => "tool.verticalType",
+        })
     }
     pub fn icon(self) -> Icon {
         match self {
@@ -102,7 +107,7 @@ impl Tool {
             Tool::Ellipse => Icon::Ellipse,
             Tool::Hand => Icon::Hand,
             Tool::Zoom => Icon::Zoom,
-            Tool::Type => Icon::Type,
+            Tool::Type | Tool::VerticalType => Icon::Type,
         }
     }
     pub fn from_name(s: &str) -> Option<Tool> {
@@ -122,7 +127,7 @@ impl Tool {
             vec![Tool::Slip, Tool::Slide],
             vec![Tool::Pen, Tool::Rectangle, Tool::Ellipse],
             vec![Tool::Hand, Tool::Zoom],
-            vec![Tool::Type],
+            vec![Tool::Type, Tool::VerticalType],
         ]
     }
 }
@@ -186,10 +191,22 @@ pub struct TimelineView {
     pub audio_track_h: f32,
     pub header_w: f32,
     pub show_thumbnails: bool,
+    /// Which frames a video clip shows while `show_thumbnails` is on (the wrench menu).
+    #[serde(default)]
+    pub thumbnail_mode: ThumbnailMode,
     pub show_waveforms: bool,
-    /// Follow playhead during playback (page scroll).
+    /// The wrench menu's Show Video Names / Show Audio Names: the name strip of the clips on video
+    /// and audio tracks (on by default; off leaves the clip picture or waveform uncovered).
+    #[serde(default = "yes")]
+    pub show_video_names: bool,
+    #[serde(default = "yes")]
+    pub show_audio_names: bool,
+    /// Follow during playback (page scroll).
     pub follow: bool,
     pub fit_pending: bool,
+    /// The playhead the view last saw: a jump while stopped (Home, End, edit points) scrolls to it.
+    #[serde(skip)]
+    pub seen_playhead: Option<(filmcraft_project::ItemId, f64)>,
     /// The zoom a fit gave an empty sequence (which fits its 1 s minimum): the first clip to arrive
     /// fits again, unless the zoom was changed in between.
     #[serde(skip)]
@@ -221,12 +238,45 @@ impl Default for TimelineView {
             audio_track_h: 56.0,
             header_w: 204.0,
             show_thumbnails: true,
+            thumbnail_mode: ThumbnailMode::Head,
             show_waveforms: true,
+            show_video_names: true,
+            show_audio_names: true,
             follow: true,
             fit_pending: true,
+            seen_playhead: None,
             fit_empty: None,
             track_lanes: Default::default(),
         }
+    }
+}
+
+/// Video thumbnails on timeline clips (Timeline wrench menu ▸ Show Video Thumbnails).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ThumbnailMode {
+    /// The clip's first frame at its head.
+    #[default]
+    Head,
+    /// The first frame at the head and the last one at the tail.
+    HeadAndTail,
+    /// Frames side by side across the whole clip.
+    Continuous,
+}
+
+impl ThumbnailMode {
+    pub const ALL: [ThumbnailMode; 3] = [ThumbnailMode::Head, ThumbnailMode::HeadAndTail, ThumbnailMode::Continuous];
+
+    /// The name used by automation ids and `ui.set` (`timeline.thumbnails`).
+    pub fn name(self) -> &'static str {
+        match self {
+            ThumbnailMode::Head => "head",
+            ThumbnailMode::HeadAndTail => "headAndTail",
+            ThumbnailMode::Continuous => "continuous",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<ThumbnailMode> {
+        Self::ALL.into_iter().find(|m| m.name().eq_ignore_ascii_case(name))
     }
 }
 
@@ -271,8 +321,15 @@ pub struct MonitorView {
     pub zoom: Option<f32>,
     /// Pan offset of a magnified picture from the centre (points).
     pub pan: [f32; 2],
+    /// The part of the clip or sequence the time ruler under the picture shows, as fractions of its
+    /// length (start, end), set with the zoom bar under the ruler; None = all of it.
+    pub time_zoom: Option<[f64; 2]>,
     pub safe_margins: bool,
+    /// Transparency Grid: a checkerboard behind the picture shows its transparent areas.
+    pub transparency_grid: bool,
     pub show_transport: bool,
+    /// Transport buttons hidden through the monitor's Button Editor. Stored per monitor.
+    pub transport_hidden: Vec<String>,
     /// Program monitor display mode Multi-Camera (angle grid + program).
     pub multicam: bool,
     pub display: DisplayMode,
@@ -294,8 +351,13 @@ impl Default for MonitorView {
             high_quality: false,
             zoom: None,
             pan: [0.0, 0.0],
+            time_zoom: None,
             safe_margins: false,
+            transparency_grid: false,
             show_transport: true,
+            // Optional buttons (Loop, Go to Previous/Next Edit Point) are available from the editor
+            // without altering default layouts, as in Premiere.
+            transport_hidden: vec!["playback.loop".into(), "playhead.prevEdit".into(), "playhead.nextEdit".into()],
             multicam: false,
             display: DisplayMode::Composite,
             compare_ref: None,
@@ -320,6 +382,19 @@ impl MonitorView {
     }
 }
 
+/// Window ▸ Workspaces dialogs: Save as New Workspace… and Edit Workspaces….
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum WorkspaceDialog {
+    SaveAs {
+        name: String,
+    },
+    /// `selected`: the workspace picked in the list; `name`: its new name being typed.
+    Edit {
+        selected: Option<String>,
+        name: String,
+    },
+}
+
 /// Guide dialogs (View ▸ Add Guide…, Guide Templates ▸ Save Guides as Template… / Manage Guides…).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum GuideDialog {
@@ -342,14 +417,49 @@ pub enum GuideDialog {
     },
 }
 
+/// The colour parameter an armed eyedropper fills (`effects.setParam` arguments).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Eyedropper {
+    pub clip: u64,
+    pub effect: usize,
+    pub param: String,
+    pub mask: Option<usize>,
+}
+
+/// A keyframe selected in the Effect Controls keyframe lane: clip, effect index, parameter (of an
+/// effect mask when `mask` is set) and the keyframe's media time. The panel drops references that
+/// no longer match a keyframe (deleted, moved, another clip selected).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyframeRef {
+    pub clip: u64,
+    pub effect: usize,
+    pub param: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mask: Option<usize>,
+    pub time: filmcraft_time::Tick,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UiState {
+    #[serde(default)]
+    pub markers_panel: crate::panels::markers_panel::State,
+    #[serde(skip)]
+    pub palette_manager: Option<crate::panels::palette_manager::Draft>,
+    #[serde(skip)]
+    pub marker_properties: Option<crate::panels::marker_properties::Draft>,
+    #[serde(skip)]
+    pub custom_label_color: Option<crate::panels::custom_colors::Draft>,
     #[serde(default)]
     pub language: crate::i18n::Language,
     pub tool: Tool,
     pub mode: Mode,
     pub workspace: String,
-    pub dock: DockNode,
+    /// The panel arrangement in use: craft-ui's frame tree and floating windows.
+    pub dock: crate::dock::Layout,
+    /// Where each panel closed while floating was ([x, y, width, height]): opening it again
+    /// brings it back there, floating, instead of docked (#1985).
+    #[serde(default)]
+    pub closed_floating: Vec<(PanelKind, [f32; 4])>,
     /// Focused panel (blue outline, receives shortcuts).
     pub focused: PanelKind,
     pub timeline: TimelineView,
@@ -361,20 +471,54 @@ pub struct UiState {
     pub expanded_bins: Vec<u64>,
     /// Expanded folders in the Effects panel.
     pub expanded_fx: Vec<String>,
-    /// Effects panel: the Lumetri Presets folder shown as a thumbnail grid (wide panel).
+    /// Effects panel: the Color Grading Presets folder shown as a thumbnail grid (wide panel).
     #[serde(default)]
     pub lumetri_grid_folder: Option<String>,
     /// Collapsed effect sections in Effect Controls ("clip:index").
     pub collapsed_fx: Vec<String>,
+    /// Width of Effect Controls' effect list, left of the keyframe area (points; 0 = the default
+    /// share of the panel). Dragging the divider sets it (#643).
+    #[serde(default)]
+    pub effect_controls_split: f32,
     pub show_menu_bar: bool,
+    /// The header bar (Home, Import, Edit, Export, workspaces). An app that embeds FilmCraft can hide it.
+    #[serde(default = "shown")]
+    pub show_header: bool,
+    /// The status bar (hints, messages, job progress). An app that embeds FilmCraft can hide it.
+    #[serde(default = "shown")]
+    pub show_status_bar: bool,
     pub dark: bool,
-    /// Lumetri scopes visible in the Program monitor area.
+    /// Color Grading scopes visible in the Program monitor area.
     pub show_scopes: bool,
+    /// Cinema mode: the Program monitor fills the whole window and the cursor is hidden. Only
+    /// `view.fullScreenProgram` turns it on, so it is not part of the saved state.
+    #[serde(skip)]
+    pub fullscreen_program: bool,
+    /// The window was already fullscreen before cinema mode started.
+    #[serde(skip)]
+    pub cinema_was_fullscreen: bool,
+    /// The panel that had focus before cinema mode started.
+    #[serde(skip)]
+    pub cinema_prev_focus: Option<PanelKind>,
     /// Transient status line shown in the footer.
     pub status: String,
+    /// A link the web browser couldn't open, shown with its address until closed
+    /// ([`crate::links::show_failed`]).
+    #[serde(default)]
+    pub failed_link: Option<crate::links::FailedLink>,
+    /// The colour parameter an armed eyedropper will fill with the next pixel clicked in the Program
+    /// monitor (Esc or a click elsewhere disarms it). Never saved.
+    #[serde(skip)]
+    pub eyedropper: Option<Eyedropper>,
+    /// Effect Controls: the selected keyframes, highlighted in the keyframe lane (a click selects one).
+    #[serde(default)]
+    pub keyframe_selection: Vec<KeyframeRef>,
     /// Essential Sound sub-tab: "Edit" or "Browse".
     #[serde(default)]
     pub essential_sound_tab: String,
+    /// Text to Speech panel: the script and voice settings being written or edited.
+    #[serde(default)]
+    pub tts: crate::panels::tts::TtsDraft,
     /// Export mode: settings, preset, destination, range, the Preset Manager and Quick Export.
     #[serde(default)]
     pub export: crate::panels::export_mode::ExportUi,
@@ -409,9 +553,22 @@ pub struct UiState {
     /// Audio Gain dialog draft (mode, dB values).
     #[serde(default)]
     pub audio_gain: AudioGainDraft,
+    /// Add Tracks dialog draft.
+    #[serde(default)]
+    pub add_tracks: AddTracksDraft,
     /// Delete Tracks dialog draft.
     #[serde(default)]
     pub delete_tracks: DeleteTracksDraft,
+    /// File ▸ Export ▸ Captions…: the file format chosen last (its extension, e.g. `vtt`), offered
+    /// first the next time.
+    #[serde(default)]
+    pub caption_export_format: Option<String>,
+    /// Sequence Settings dialog draft.
+    #[serde(default)]
+    pub sequence_settings: SequenceSettingsDraft,
+    /// Set Transition Duration dialog draft (double-click a transition).
+    #[serde(default)]
+    pub transition_duration: TransitionDurationDraft,
     /// On-monitor text editing (Type tool / double-click on a text layer).
     #[serde(default)]
     pub gfx_edit: Option<GfxEdit>,
@@ -454,6 +611,12 @@ pub struct UiState {
     /// Open guide dialog (Add Guide / Save Guides as Template / Manage Guides).
     #[serde(default)]
     pub guide_dialog: Option<GuideDialog>,
+    /// Open Text Properties dialog (the wrench in the Properties panel's Text section).
+    #[serde(default)]
+    pub text_props_dialog: Option<TextPropsDialog>,
+    /// Open Window ▸ Workspaces dialog.
+    #[serde(default)]
+    pub workspace_dialog: Option<WorkspaceDialog>,
     /// Edit / Clip / File menu dialog (Paste Attributes, Make Subclip, Frame Hold Options, …;
     /// open when Some). See `panels::clip_dialogs`.
     #[serde(default)]
@@ -466,7 +629,7 @@ pub struct UiState {
     /// `panels::graphics_templates`.
     #[serde(default)]
     pub gfx_templates: crate::panels::graphics_templates::GfxTemplatesState,
-    /// Lumetri Scopes, Timecode, Events, Progress and Reference Monitor settings. See
+    /// Video Scopes, Timecode, Events, Progress and Reference Monitor settings. See
     /// `panels::panel_state`.
     #[serde(default)]
     pub panels: crate::panels::panel_state::PanelsState,
@@ -685,8 +848,101 @@ pub struct AudioGainDraft {
     pub all_peaks_db: f64,
 }
 
+/// The Add Tracks dialog (Sequence ▸ Add Tracks…): for video, audio and audio submix tracks, how
+/// many to add and where (`*_after`: how many tracks of the kind come before the new ones; 0 is
+/// "Before First Track"), and the type of the audio and submix tracks (`standard` / `stereo`,
+/// `5.1`, `adaptive`, `mono`). Premiere's defaults: one video track and one audio track after the
+/// last ones, no submix track.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AddTracksDraft {
+    pub video: u32,
+    pub video_after: usize,
+    pub audio: u32,
+    pub audio_after: usize,
+    pub audio_type: String,
+    pub submix: u32,
+    pub submix_after: usize,
+    pub submix_type: String,
+}
+
+impl Default for AddTracksDraft {
+    fn default() -> Self {
+        Self { video: 1, video_after: 0, audio: 1, audio_after: 0, audio_type: "standard".into(), submix: 0, submix_after: 0, submix_type: "stereo".into() }
+    }
+}
+
+/// The Set Transition Duration dialog (double-click a transition in the Timeline): which
+/// transition, and its duration in frames.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TransitionDurationDraft {
+    pub transition: u64,
+    pub frames: i64,
+}
+
+/// The Sequence Settings dialog (Sequence ▸ Sequence Settings…), filled from the active sequence
+/// when it opens (`panels::sequence_settings::open`). `tab`: `general`, `color` or `vr`; the
+/// timebase is `fps_num`/`fps_den`; `mix`: `Stereo`, `Mono`, `5.1` or `Adaptive`; `working_space`:
+/// a [`filmcraft_color::WorkingSpace`] id. `scale_motion` is "Scale motion effects proportionally
+/// when changing frame size", on by default as in Premiere.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SequenceSettingsDraft {
+    pub tab: String,
+    /// The sequence's name (its Project panel item); a blank name keeps the current one.
+    pub name: String,
+    /// File ▸ New ▸ Sequence…: the dialog makes a new sequence (`file.newSequence`) with these
+    /// settings and `video_tracks` / `audio_tracks` tracks, instead of changing the active one.
+    pub new_sequence: bool,
+    /// New Sequence: the bin the Project panel was showing, which the new sequence lands in.
+    pub bin: Option<u64>,
+    pub video_tracks: u32,
+    pub audio_tracks: u32,
+    pub fps_num: i64,
+    pub fps_den: i64,
+    pub width: u32,
+    pub height: u32,
+    pub scale_motion: bool,
+    pub drop_frame: bool,
+    /// Video Display Format: Timecode, Feet + Frames 35mm / 16mm or Frames.
+    pub display: filmcraft_time::TimeDisplay,
+    pub mix: String,
+    pub sample_rate: u32,
+    pub max_render_quality: bool,
+    pub working_space: String,
+    pub wide_gamut: bool,
+    pub auto_tone_map: bool,
+}
+
+impl Default for SequenceSettingsDraft {
+    fn default() -> Self {
+        Self {
+            tab: "general".into(),
+            name: String::new(),
+            new_sequence: false,
+            bin: None,
+            video_tracks: 3,
+            audio_tracks: 3,
+            fps_num: 24_000,
+            fps_den: 1001,
+            width: 1920,
+            height: 1080,
+            scale_motion: true,
+            drop_frame: false,
+            display: filmcraft_time::TimeDisplay::Timecode,
+            mix: "Stereo".into(),
+            sample_rate: 48_000,
+            max_render_quality: false,
+            working_space: "rec709".into(),
+            wide_gamut: false,
+            auto_tone_map: true,
+        }
+    }
+}
+
 /// The Delete Tracks dialog (Sequence ▸ Delete Tracks…): per kind, whether to delete and which
-/// track (`"empty"` = All Empty Tracks, or a track name such as `"V2"`).
+/// track (`"empty"` = All Empty Tracks, or a track name such as `"V2"` / `"C2"`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DeleteTracksDraft {
@@ -694,12 +950,28 @@ pub struct DeleteTracksDraft {
     pub video_target: String,
     pub audio: bool,
     pub audio_target: String,
+    pub captions: bool,
+    pub captions_target: String,
 }
 
 impl Default for DeleteTracksDraft {
     fn default() -> Self {
-        Self { video: false, video_target: "empty".into(), audio: false, audio_target: "empty".into() }
+        Self { video: false, video_target: "empty".into(), audio: false, audio_target: "empty".into(), captions: false, captions_target: "empty".into() }
     }
+}
+
+/// Draft of the Text Properties dialog of a text layer: its type (point text, or paragraph text
+/// wrapped in a box) and text styling.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct TextPropsDialog {
+    pub clip: u64,
+    pub layer: usize,
+    pub paragraph: bool,
+    /// Vertical text is always point text.
+    pub vertical: bool,
+    pub ligatures: bool,
+    /// Ligatures when the dialog opened.
+    pub ligatures_was: bool,
 }
 
 /// The text layer being edited on the Program monitor: caret and selection anchor are byte
@@ -710,6 +982,18 @@ pub struct GfxEdit {
     pub layer: usize,
     pub caret: usize,
     pub anchor: usize,
+    /// Stable layer uid (`0` = the project layer has none).
+    #[serde(default)]
+    pub uid: u64,
+    /// Compact identity of a uid-less layer, so the edit target follows its layer through a
+    /// reorder, a deletion below it, or undo/redo instead of editing whatever moves into the
+    /// numeric index.
+    #[serde(default)]
+    pub fingerprint: u64,
+}
+
+fn shown() -> bool {
+    true
 }
 
 fn captions_tab() -> String {
@@ -723,10 +1007,15 @@ fn yes() -> bool {
 impl Default for UiState {
     fn default() -> Self {
         Self {
+            marker_properties: None,
+            markers_panel: Default::default(),
+            palette_manager: None,
+            custom_label_color: None,
             language: crate::i18n::Language::default(),
             tool: Tool::Selection,
             mode: Mode::Edit,
             workspace: "Editing".into(),
+            closed_floating: vec![],
             dock: crate::dock::workspace("Editing"),
             focused: PanelKind::Timeline,
             timeline: TimelineView::default(),
@@ -738,11 +1027,18 @@ impl Default for UiState {
             expanded_fx: vec!["Video Transitions".into(), "Video Transitions/Dissolve".into()],
             lumetri_grid_folder: None,
             collapsed_fx: vec![],
+            effect_controls_split: 0.0,
             show_menu_bar: true,
+            show_header: true,
+            show_status_bar: true,
             dark: true,
             show_scopes: false,
             status: String::new(),
+            failed_link: None,
+            eyedropper: None,
+            keyframe_selection: Vec::new(),
             essential_sound_tab: "Edit".into(),
+            tts: Default::default(),
             export: Default::default(),
             text_tab: captions_tab(),
             caption_search: String::new(),
@@ -754,7 +1050,11 @@ impl Default for UiState {
             mixer_meter_input_only: false,
             settings: None,
             audio_gain: AudioGainDraft::default(),
+            add_tracks: AddTracksDraft::default(),
             delete_tracks: DeleteTracksDraft::default(),
+            caption_export_format: None,
+            sequence_settings: SequenceSettingsDraft::default(),
+            transition_duration: TransitionDurationDraft::default(),
             gfx_edit: None,
             pen_points: vec![],
             link_media: None,
@@ -769,6 +1069,8 @@ impl Default for UiState {
             multicam_record: true,
             edit_cameras: None,
             guide_dialog: None,
+            text_props_dialog: None,
+            workspace_dialog: None,
             clip_dialog: None,
             extras: Default::default(),
             gfx_templates: Default::default(),
@@ -776,6 +1078,9 @@ impl Default for UiState {
             keys: Default::default(),
             project_panel: Default::default(),
             media_browser: Default::default(),
+            fullscreen_program: false,
+            cinema_was_fullscreen: false,
+            cinema_prev_focus: None,
         }
     }
 }

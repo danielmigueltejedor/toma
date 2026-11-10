@@ -33,17 +33,25 @@
 //! - **v12** (M10.7): graphics templates, rolls / crawls, responsive design (pins, intro / outro),
 //!   per-character text styles (`TrackItem::graphic`, `EffectInstance::layer`) and source graphics
 //!   (`Project::source_graphics`). No-op step; older builds would drop these fields when saving.
+//! - **v13**: all container audio streams, and per-timeline-clip stream selection. Old single-stream
+//!   `audio` objects read as stream zero; older builds must refuse new multi-stream projects.
+//! - **v14** (M7.9): narrations (`Project::narrations`, Text to Speech). No-op step; older builds
+//!   would drop them when saving.
+//! - **v15**: project notes (`Project::notes`, Window ▸ Project Notes). No-op step; older builds
+//!   would drop them when saving.
+//! - **v16**: marker authors, named project swatches, and exact marker/clip hex colors.
+//! - **v17**: optional marker URLs, independent of notes and retained across marker-type changes.
 
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable))]
 
 pub mod atomic;
 pub mod autosave;
 
-use filmcraft_project::Project;
+use filmcraft_project::{Project, ProjectView};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub use atomic::atomic_write;
+pub use atomic::{atomic_write, atomic_write_new};
 
 /// The `format` tag written in every envelope.
 pub const FORMAT_ID: &str = "filmcraft.project";
@@ -53,7 +61,10 @@ pub type Migration = fn(Value) -> Result<Value, String>;
 
 /// `MIGRATIONS[i]` upgrades schema `i + 1` to `i + 2`. Append one function per schema bump; never
 /// edit a shipped one.
-pub const MIGRATIONS: &[Migration] = &[v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10, v10_to_v11, v11_to_v12];
+pub const MIGRATIONS: &[Migration] = &[
+    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10, v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14, v14_to_v15,
+    v15_to_v16, v16_to_v17,
+];
 
 /// The schema version this build writes (and the newest it reads).
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32 + 1;
@@ -85,6 +96,9 @@ pub struct Loaded {
     pub schema_version: u32,
     /// The `generator` string of the writer, if recorded.
     pub generator: Option<String>,
+    /// What was open when the file was saved (sequence tabs and how each was shown), when the
+    /// file records it and it can be read.
+    pub view: Option<ProjectView>,
 }
 
 impl Loaded {
@@ -105,6 +119,8 @@ struct EnvelopeOut<'a> {
     schema_version: u32,
     generator: String,
     project: &'a Project,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    view: Option<&'a ProjectView>,
 }
 
 #[derive(Deserialize)]
@@ -112,6 +128,17 @@ struct EnvelopeIn {
     #[serde(default)]
     generator: Option<String>,
     project: Project,
+    /// Kept as JSON until the project itself has loaded: a view that cannot be read is dropped,
+    /// it never stops a project from opening.
+    #[serde(default)]
+    view: Option<Value>,
+}
+
+impl EnvelopeIn {
+    fn loaded(self, schema_version: u32) -> Loaded {
+        let view = self.view.and_then(|v| serde_json::from_value(v).ok());
+        Loaded { project: self.project, schema_version, generator: self.generator, view }
+    }
 }
 
 /// Just enough of a document to know which schema it is.
@@ -133,7 +160,14 @@ struct Probe {
 /// Serialize a project in the current schema. `pretty` = indented (human-diffable; used for the
 /// project file itself), compact otherwise (recovery snapshots).
 pub fn encode(project: &Project, pretty: bool) -> Vec<u8> {
-    let env = EnvelopeOut { format: FORMAT_ID, schema_version: SCHEMA_VERSION, generator: generator(), project };
+    encode_with_view(project, None, pretty)
+}
+
+/// [`encode`], with what is open in the editor (`view`) stored beside the project. The view is
+/// outside the schema's promises: builds that do not know it ignore it, and it is dropped rather
+/// than migrated when it cannot be read.
+pub fn encode_with_view(project: &Project, view: Option<&ProjectView>, pretty: bool) -> Vec<u8> {
+    let env = EnvelopeOut { format: FORMAT_ID, schema_version: SCHEMA_VERSION, generator: generator(), project, view };
     let r = if pretty { serde_json::to_vec_pretty(&env) } else { serde_json::to_vec(&env) };
     // Serializing plain data (string keys, finite numbers or null) cannot fail.
     r.unwrap_or_default()
@@ -175,12 +209,77 @@ pub fn decode(bytes: &[u8]) -> Result<Loaded, FormatError> {
     if found == SCHEMA_VERSION {
         // Fast path: deserialize straight into the model.
         let env: EnvelopeIn = serde_json::from_slice(bytes).map_err(|e| FormatError::Corrupt(e.to_string()))?;
-        return Ok(Loaded { project: env.project, schema_version: found, generator: env.generator });
+        return validate_loaded(env.loaded(found));
     }
     let doc: Value = serde_json::from_slice(bytes).map_err(|e| FormatError::Corrupt(e.to_string()))?;
     let doc = migrate_with(MIGRATIONS, doc, found)?;
     let env: EnvelopeIn = serde_json::from_value(doc).map_err(|e| FormatError::Corrupt(format!("after upgrading from schema v{found}: {e}")))?;
-    Ok(Loaded { project: env.project, schema_version: found, generator: env.generator })
+    validate_loaded(env.loaded(found))
+}
+
+/// Refuse only values that would overflow or exhaust memory later (`Sequence::check_bounds`);
+/// structural rules such as overlaps are left to the editor, so projects that open today still open.
+fn validate_loaded(mut loaded: Loaded) -> Result<Loaded, FormatError> {
+    // Graphic layers written before they carried a uid get a stable identity now, before any
+    // undo history exists. The field is optional in the schema, so this is not a schema upgrade.
+    loaded.project.ensure_graphic_layer_uids();
+    // Embedded LUT text is rendered on the hot path. Drop oversize entries at load time so a
+    // hostile project cannot retain an unrenderable multi-megabyte source or repeatedly offer it
+    // to renderers. Clips that refer to one simply have no LUT, like a deleted library entry.
+    let max_lut = filmcraft_project::MAX_LUT_TEXT_BYTES;
+    loaded.project.luts.retain(|lut| {
+        let keep = lut.text.len() <= max_lut;
+        if !keep {
+            log::warn!("LUT `{}`: {} bytes, dropping entry above {max_lut} byte limit", lut.name, lut.text.len());
+        }
+        keep
+    });
+    // Out-of-range audio stream data is repaired, not refused: failing the load would lose the
+    // whole project over one bad index. A media item keeps its first `MAX_AUDIO_STREAMS` streams; a
+    // clip pointing past that plays stream 0.
+    let max = filmcraft_media::MAX_AUDIO_STREAMS;
+    for item in loaded.project.items.values_mut() {
+        let name = item.name.clone();
+        match &mut item.kind {
+            filmcraft_project::ItemKind::Media(m) => {
+                if let Some(video) = &m.info.video {
+                    filmcraft_project::validate_frame_size(video.width, video.height).map_err(|e| FormatError::Corrupt(format!("media `{name}`: {e}")))?;
+                }
+                if m.info.audio_streams.len() > max {
+                    log::warn!("media `{name}`: {} audio streams, keeping the first {max}", m.info.audio_streams.len());
+                    m.info.audio_streams.truncate(max);
+                }
+            }
+            filmcraft_project::ItemKind::Sequence(sequence) => {
+                let sequence = std::sync::Arc::make_mut(sequence);
+                for clip in sequence.audio_tracks.iter_mut().flat_map(|t| t.items.iter_mut()) {
+                    if clip.audio_stream >= max {
+                        log::warn!("sequence `{name}`: clip `{}` uses audio stream {}, reset to 0", clip.name, clip.audio_stream);
+                        clip.audio_stream = 0;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    for item in loaded.project.sequences() {
+        if let filmcraft_project::ItemKind::Sequence(sequence) = &item.kind {
+            sequence.check_bounds().map_err(|e| FormatError::Corrupt(format!("sequence `{}`: {e}", item.name)))?;
+        }
+    }
+    // Every new id is `next_id`, read from the file as is. One that lags behind the ids in it (an
+    // older build, a hand edit) would hand out an id in use, and the new item replace the old (#2809).
+    let project = &mut loaded.project;
+    let max = project.max_id();
+    let past = max.checked_add(1).ok_or_else(|| FormatError::Corrupt(format!("project ID space exhausted (id {max} in use)")))?;
+    if project.next_id < past {
+        log::warn!("next id {} is not past the largest id in the project, raised to {past}", project.next_id);
+        project.next_id = past;
+    }
+    if project.next_id > Project::MAX_NEXT_ID {
+        return Err(FormatError::Corrupt(format!("project ID space exhausted (next id {})", project.next_id)));
+    }
+    Ok(loaded)
 }
 
 fn check_supported(found: u32) -> Result<(), FormatError> {
@@ -281,13 +380,104 @@ fn v11_to_v12(doc: Value) -> Result<Value, String> {
     Ok(doc)
 }
 
+/// v12 → v13: container audio streams and per-clip stream selection. `MediaInfo` reads the old
+/// `audio` field as stream zero; `TrackItem::audio_stream` defaults to zero.
+fn v12_to_v13(doc: Value) -> Result<Value, String> {
+    Ok(doc)
+}
+
+/// v13 → v14: narrations (Text to Speech). Existing data needs no change.
+fn v13_to_v14(doc: Value) -> Result<Value, String> {
+    Ok(doc)
+}
+
+/// v14 → v15: project notes. Existing data needs no change.
+fn v14_to_v15(doc: Value) -> Result<Value, String> {
+    Ok(doc)
+}
+
+/// v15 → v16: existing colors remain presets; authors and the named custom palette default empty.
+fn v15_to_v16(doc: Value) -> Result<Value, String> {
+    Ok(doc)
+}
+
+/// v16 → v17: marker URLs default empty. Older builds must not silently drop saved URLs.
+fn v16_to_v17(doc: Value) -> Result<Value, String> {
+    Ok(doc)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn schema_version_matches_table() {
-        assert_eq!(SCHEMA_VERSION, 12);
+        assert_eq!(SCHEMA_VERSION, 17);
+    }
+
+    #[test]
+    fn damaged_sequence_settings_are_rejected_before_rendering() {
+        let mut p = Project::new("Invalid sequence");
+        let id = p.new_sequence("Bad", filmcraft_project::SequenceSettings::default(), 1, 1, None);
+        for (width, height, sample_rate) in [(0, 90, 48000), (160, 0, 48000), (160, 90, 0), (65536, 90, 48000), (32768, 16384, 48000)] {
+            let settings = &mut p.sequence_mut(id).unwrap().settings;
+            (settings.width, settings.height, settings.sample_rate) = (width, height, sample_rate);
+            assert!(matches!(decode(&encode(&p, false)), Err(FormatError::Corrupt(_))));
+        }
+    }
+
+    /// #210 review: load-time validation refuses only overflowing values. A project that breaks a
+    /// structural rule an older build may have written (overlapping or zero-length clips) still
+    /// opens, as it did before; and 16K sequences are not "too large".
+    #[test]
+    fn structural_rule_breaks_still_open() {
+        use filmcraft_project::{ItemKind, SequenceSettings, TrackKind};
+        use filmcraft_time::{FrameRate, Tick, TimeRange};
+        let mut p = Project::new("Legacy");
+        let rate = FrameRate::FPS_24;
+        let layer = p.add_item(
+            "Layer",
+            filmcraft_project::Label::Iris,
+            ItemKind::AdjustmentLayer { width: 1920, height: 1080, rate, duration: rate.tick_of(48) },
+            None,
+        );
+        let settings = SequenceSettings { width: 15360, height: 8640, ..Default::default() };
+        let seq = p.new_sequence("Sequence 01", settings, 1, 1, None);
+        let range = TimeRange::new(Tick::ZERO, rate.tick_of(48));
+        let a = p.make_track_item(layer, TrackKind::Video, Tick::ZERO, range, rate).unwrap();
+        let b = p.make_track_item(layer, TrackKind::Video, rate.tick_of(24), range, rate).unwrap();
+        let mut c = p.make_track_item(layer, TrackKind::Video, rate.tick_of(200), range, rate).unwrap();
+        c.duration = Tick::ZERO;
+        p.sequence_mut(seq).unwrap().video_tracks[0].items = vec![a, b, c];
+        assert!(p.sequence(seq).unwrap().check().is_err(), "the sequence breaks the editor's invariants");
+        let loaded = decode(&encode(&p, false)).unwrap_or_else(|e| panic!("a project that opened before is refused: {e}"));
+        assert_eq!(loaded.project.sequence(seq).unwrap().video_tracks[0].items.len(), 3);
+    }
+
+    /// Opening a project written before graphic layers had uids assigns stable, unique identities
+    /// without a schema upgrade. The old file still opens, and its two byte-identical layers (same
+    /// geometry, different text) can no longer be confused after a reorder.
+    #[test]
+    fn opening_a_legacy_project_assigns_unique_graphic_layer_uids() {
+        use filmcraft_project::graphic::{layer_indices, new_text_layer};
+        use filmcraft_project::{ItemKind, SequenceSettings, TrackKind};
+        use filmcraft_time::{FrameRate, Tick, TimeRange};
+        let mut p = Project::new("Legacy graphics");
+        let rate = FrameRate::FPS_25;
+        let seq = p.new_sequence("Sequence 01", SequenceSettings::default(), 1, 1, None);
+        let graphic = p.add_item("Graphic", filmcraft_project::Label::Rose, ItemKind::Graphic { width: 1920, height: 1080, rate }, None);
+        let mut item = p.make_track_item(graphic, TrackKind::Video, Tick::ZERO, TimeRange::new(Tick::ZERO, rate.tick_of(100)), rate).unwrap();
+        item.effects = vec![new_text_layer("one", Default::default(), 100.0), new_text_layer("two", Default::default(), 100.0)];
+        assert!(item.effects.iter().all(|e| filmcraft_project::gtemplate::layer_uid(e) == 0));
+        p.sequence_mut(seq).unwrap().video_tracks[0].items = vec![item];
+        let loaded = decode(&encode(&p, false)).expect("an old project still opens");
+        let item = &loaded.project.sequence(seq).unwrap().video_tracks[0].items[0];
+        let uids: Vec<u64> = layer_indices(&item.effects).into_iter().map(|i| filmcraft_project::gtemplate::layer_uid(&item.effects[i])).collect();
+        assert_eq!(uids.len(), 2);
+        assert!(uids.iter().all(|uid| *uid != 0), "opening assigned uids: {uids:?}");
+        assert_ne!(uids[0], uids[1], "identical geometry and different text still get distinct identities");
+        let again = decode(&encode(&loaded.project, false)).expect("the upgraded project round-trips");
+        assert_eq!(again.project, loaded.project, "assigned uids are stable across saves");
     }
 
     #[test]
@@ -301,6 +491,52 @@ mod tests {
             assert!(!l.migrated());
             assert_eq!(l.generator.as_deref(), Some(generator().as_str()));
         }
+    }
+
+    #[test]
+    fn oversized_embedded_luts_are_dropped_on_load() {
+        let mut p = Project::new("LUT limit");
+        p.luts.push(filmcraft_project::ProjectLut {
+            id: "huge".into(),
+            name: "huge".into(),
+            source_path: None,
+            format: "cube".into(),
+            text: "#".repeat(filmcraft_project::MAX_LUT_TEXT_BYTES + 1).into(),
+        });
+        let loaded = decode(&encode(&p, false)).unwrap();
+        assert!(loaded.project.luts.is_empty());
+    }
+
+    /// What is open is stored beside the project. A file without it, or with one that cannot be
+    /// read, opens all the same.
+    #[test]
+    fn the_view_is_kept_beside_the_project_and_never_stops_a_file_from_opening() {
+        use filmcraft_project::{ItemId, SequenceSettings, SequenceView};
+        let mut p = Project::new("Tabs");
+        let seq = p.new_sequence("Sequence 01", SequenceSettings::default(), 1, 1, None);
+        let view = ProjectView {
+            open_sequences: vec![seq],
+            active_sequence: Some(seq),
+            sequences: [(seq, SequenceView { pps: 80.0, scroll: 1.5, v_scroll: 0.0, a_scroll: 4.0, video_track_h: 60.0, audio_track_h: 56.0 })].into(),
+            playheads: [(seq, filmcraft_time::Tick(3 * filmcraft_time::TICKS_PER_SECOND))].into(),
+        };
+        for pretty in [true, false] {
+            let l = decode(&encode_with_view(&p, Some(&view), pretty)).unwrap();
+            assert_eq!((l.view.as_ref(), &l.project), (Some(&view), &p));
+            assert_eq!(decode(&encode(&p, pretty)).unwrap().view, None);
+        }
+        // the project is the same bytes with or without a view beside it
+        let mut doc: Value = serde_json::from_slice(&encode_with_view(&p, Some(&view), false)).unwrap();
+        assert_eq!(doc["project"], serde_json::from_slice::<Value>(&encode(&p, false)).unwrap()["project"]);
+        // a view that is not one: dropped, the project loads
+        for junk in [serde_json::json!(7), serde_json::json!({"open_sequences": {"a": 1}}), serde_json::json!({"sequences": [1]}), Value::Null] {
+            doc["view"] = junk;
+            let l = decode(&serde_json::to_vec(&doc).unwrap()).unwrap();
+            assert_eq!((l.view, &l.project), (None, &p));
+        }
+        // unknown ids are not this crate's business (the editor checks them against the project)
+        doc["view"] = serde_json::json!({"open_sequences": [424242]});
+        assert_eq!(decode(&serde_json::to_vec(&doc).unwrap()).unwrap().view.unwrap().open_sequences, [ItemId(424242)]);
     }
 
     /// A clip with unresolved "auto" points (NaN) is written with `null` coordinates. Such a file

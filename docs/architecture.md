@@ -1,5 +1,7 @@
 # Architecture
 
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-10 · **Change:** trivial (status line, revision history and roadmap link added; content checked against the crate list) · **Target:** Adobe Premiere Pro 2026 (26.5.2)
+
 FilmCraft is a Cargo workspace of small crates with strictly enforced layering. The engine is
 headless: every feature can be reached without a window, and the egui UI is one client among the
 CLI, the JSON control channel and the MCP server.
@@ -24,10 +26,10 @@ Design principles:
  L5  ui-egui · automation · platform
  L4  engine
  L3  render · gpu · export · golden (test-only)
- L2  edit · codecs · interchange · captions · speech
+ L2  edit · codecs · interchange · captions · speech · tts · tts-text
  L1  frame · media · project · audio-dsp · text
  L0  foundation: time · geom · color · bitstream · testkit (dev-dependency only)
-     codecs/containers: isobmff · matroska · mxf · cfb · mpegts · ogg · h264 · h264enc · hevc · vp9 · av1 · mpeg2v · prores · dnx · aac · ac3 · opus
+     codecs/containers: isobmff · matroska · mxf · cfb · mpegts · ogg · h264 · h264enc · hevc · vp9 · av1 · mpeg2v · prores · dnx · apv · dng · aac · ac3 · mpa · opus
 ```
 
 Crates are named `filmcraft-<dir>` (`crates/time` is `filmcraft-time`). The apps are `filmcraft`
@@ -49,10 +51,14 @@ and `filmcraft-cli`.
 | `hevc` | L0 | H.265 Main/Main 10 decoder |
 | `prores` | L0 | ProRes decoder and encoder |
 | `dnx` | L0 | DNxHD / DNxHR (SMPTE ST 2019-1 VC-3) decoder and DNxHR encoder |
+| `apv` | L0 | Advanced Professional Video (IETF RFC 9924) decoder and encoder ([README](../crates/apv/README.md)) |
+| `dng` | L0 | DNG / CinemaDNG camera RAW decoder: TIFF container, uncompressed and lossless JPEG raw data, DNG processing to linear Rec. 709 ([README](../crates/dng/README.md)) |
 | `av1` | L0 | AV1 decoder (Main profile; bit-exact with libdav1d; see its README for the stage table) |
 | `mpeg2v` | L0 | MPEG-2 video (Main / 4:2:2 profile; frame and field pictures, dual prime) and MPEG-1 video decoder ([README](../crates/mpeg2v/README.md)) |
 | `aac` | L0 | AAC-LC decoder and encoder |
+| `mp3enc` | L0 | MPEG-1/2 Audio Layer III (MP3) encoder: CBR, mono / stereo / joint stereo, bit reservoir ([README](../crates/mp3enc/README.md)) |
 | `ac3` | L0 | AC-3 (ATSC A/52) decoder ([README](../crates/ac3/README.md)) |
+| `mpa` | L0 | MPEG-1/2 Audio Layer I and II (MP1 / MP2) decoder ([README](../crates/mpa/README.md)) |
 | `testkit` | L0 | test-only helpers, used only as a dev-dependency: ffmpeg/ffprobe discovery, fixture dirs, golden images ([testing.md](testing.md)) |
 | `frame` | L1 | `VideoFrame` (planar YUV / RGBA8 / linear RGBA f32, colour metadata), `AudioBuffer` |
 | `media` | L1 | `MediaSource` trait, probing/openers, frame cache, generators, stills, image sequences, WAV / Broadcast WAV |
@@ -61,6 +67,8 @@ and `filmcraft-cli`.
 | `text` | L1 | text engine: font database (bundled OFL fonts + system fonts), shaping (harfrust), bidi, line breaking, paragraph layout, glyph/path rasteriser, strokes ([crates/text/README.md](../crates/text/README.md)) |
 | `edit` | L2 | pure edit algebra (insert, overwrite, razor, ripple, roll, slip, slide, rate stretch…; text-based editing: `edit::transcript`) |
 | `speech` | L2 | speech-to-text: `Transcriber` trait, Whisper model catalogue + verified downloader (feature `download`), pure-Rust Whisper inference on candle with word timestamps (feature `whisper`), speaker labelling ([transcripts.md](transcripts.md)) |
+| `tts` | L2 | text to speech: `Voice` trait, voice catalogue, pause markers, built-in formant voices; Kokoro-82M natural voices on candle and their pinned package catalogue (feature `kokoro`). Same-layer edge to `tts-text` |
+| `tts-text` | L2 | text front end for narration: normalizer (numbers, money, dates, acronyms, pauses) and English pronunciation (CMUdict + letter-to-sound) to Kokoro phonemes |
 | `codecs` | L2 | container + codec hub: MP4/MOV, MKV, MXF, Ogg and MPEG TS / PS / video elementary stream sources, GOP-aware seeking, decoder registry, audio decoding |
 | `interchange` | L2 | EDL, FCP7 XML, FCPXML, OTIO, AAF (on `cfb`) and OMF 2.0 import/export (no file I/O; the engine supplies rendered audio essence) ([README](../crates/interchange/README.md)) |
 | `render` | L3 | sequence evaluation, CPU compositor, video effects (`effects`, `vfx`; effects needing other frames or tracks read them through `vfx::FxEnv`), transitions, audio mix |
@@ -71,7 +79,7 @@ and `filmcraft-cli`.
 | `engine` | L4 | `Session`, command registry, undo history, media pool, jobs, interchange glue |
 | `ui-egui` | L5 | the egui frontend: docking, panels, timeline, monitors, playback, control-channel handlers |
 | `automation` | L5 | MCP server (`rmcp`, stdio), headless or bridged to the running app |
-| `platform` | L5 | OS media FFI only: hardware video decoding (VideoToolbox H.264 / HEVC on macOS; a no-op elsewhere) behind `codecs::VideoDecoder`, with transparent fallback to our decoders. The one crate allowed `unsafe` ([ADR 0001](adr/0001-platform-ffi.md), [README](../crates/platform/README.md)) |
+| `platform` | L5 | OS media FFI only: hardware video decoding (VideoToolbox H.264 / HEVC on macOS; Media Foundation / Direct3D 11 H.264 / HEVC / VP9 / AV1 on Windows; VA-API H.264 / HEVC on Linux, with our own parsers and DPBs driving the stateless hardware; a no-op elsewhere) behind `codecs::VideoDecoder`, with transparent fallback to our decoders, and hardware H.264 encoding (VideoToolbox, opt-in) and H.265 encoding (VideoToolbox, the only H.265 encoder; the format exists only where a hardware encoder does) and NVIDIA NVENC H.264 (Windows and 64-bit Linux, opt-in) and H.265 (Windows, FilmCraft's only H.265 encoder there) encoding behind `export::VideoEncoder`; H.264 declines to the built-in encoder for what the hardware does not take. The one crate allowed `unsafe` ([ADR 0001](adr/0001-platform-ffi.md), [README](../crates/platform/README.md)) |
 | `filmcraft` | L6 | desktop binary: eframe/wgpu window, cpal audio output, file dialogs, native macOS menu, TCP control server |
 | `filmcraft-cli` | L6 | headless CLI: `exec`, `run`, `inspect`, `describe`, `commands`, `import`, `export`, `render`, `probe`, `mcp`; `--bridge` targets the running app |
 | `filmcraft-web` | L6 | the browser app (wasm32): eframe web runner on WebGPU/WebGL2, Blob-backed services, OPFS recovery, WebAudio, WebCodecs, `window.filmcraft` API ([web.md](web.md)) |
@@ -199,7 +207,7 @@ pub struct CommandSpec {
 ```text
 file ──► codecs (MP4/MOV, MKV, audio)        demux + decode, GOP-aware seek
           │   decoder registry: h264, hevc, vp9, av1, prores, dnx, mjpeg (+ any registered first:
-          │   platform's VideoToolbox H.264 / HEVC on macOS, falling back to ours)
+          │   platform's VideoToolbox (macOS) or Media Foundation (Windows) H.264 / HEVC, falling back to ours)
           ▼
         media::MediaSource ──► frame cache (byte-budgeted LRU, shared)
           ▼
@@ -219,18 +227,31 @@ file ──► codecs (MP4/MOV, MKV, audio)        demux + decode, GOP-aware see
   `audio(start, frames, rate)` in media time. Sources are `Send + Sync` and shared by monitors,
   thumbnails, playback and export. The engine's `MediaPool` creates one per project item, lazily,
   through registered openers (`codecs::openers()`: MP4/MOV, MKV/WebM, audio files).
+- **Pixel aspect ratio.** Demuxers report it in `VideoStreamInfo::par` (MP4/MOV `pasp`, Matroska
+  display size, MXF aspect ratio, MPEG sequence header / VUI); Interpret Footage's
+  `Interpretation::par` overrides it (`clip.interpretFootage {pixelAspect}`), and
+  `SequenceSettings::par` is the sequence's. Both go through `project::checked_par` (a zero term
+  or more than 8:1 either way = square). `render::motion_matrix` works in square display units,
+  so a 1440 x 1080 clip with 4:3 pixels fills a 1920 x 1080 square-pixel sequence at 100 %
+  (Scale to Frame Size, Set to Frame Size and Fit / Fill use `Project::conformed_source_size`);
+  graphics and adjustment layers are in sequence pixels. New Sequence From Clip copies the clip's
+  ratio, and the Source and Program monitors draw the picture at its display aspect. The
+  renderer does not read decoded frames' own `VideoFrame::par`.
 - **Offline media and proxies.** The pool caches each item's source per reference (path, offline
   flag), so relinking and undo take effect at once. Media that can't be opened renders the offline
   slate (`render::offline`) instead of failing. With proxies enabled, an item with a proxy reads
   it through `ProxySource`, which reports the original's size. Export always uses
-  `MediaPool::full_res_provider`. See [project-files.md](project-files.md#media-offline-relinking-proxies-ingest).
+  `MediaPool::full_res_provider`. Background jobs (exports, Render Previews, proxies) open their
+  own copy of each file they can stream (`MediaPool::own_source`, `PoolProvider::own_sources`),
+  so they never take turns with the monitors on one decoder. See [project-files.md](project-files.md#media-offline-relinking-proxies-ingest).
 - **Seeking.** `codecs::Mp4Source` seeks to the preceding sync sample and decodes forward, caching
   every frame of the GOP. Sequential playback reuses the decoder. Decoders implement
   `codecs::VideoDecoder`. `register_video_decoder` puts a factory in front of the built-in ones, so a
   hardware decoder can take precedence. The GOP cache never holds its lock while decoding.
 - **Hardware decoding.** The apps (desktop, CLI / headless MCP, bench) call
   `filmcraft_platform::register()` at startup, which on macOS registers a VideoToolbox factory for
-  `avcC` / `hvcC` streams (8 / 10-bit, 4:2:0 and 4:2:2; elsewhere it does nothing). The factory
+  `avcC` / `hvcC` streams (8 / 10-bit, 4:2:0 and 4:2:2; elsewhere it does nothing), and on Windows a
+  Media Foundation one (below). The factory
   declines (our decoder is used) when Settings ▸ Playback ▸ Hardware decoding is Off
   (`codecs::hw::set_hardware_decoding`, applied by the engine whenever preferences change), for
   formats it does not take, and when the OS cannot create a *hardware* session for the stream.
@@ -245,10 +266,47 @@ file ──► codecs (MP4/MOV, MKV, audio)        demux + decode, GOP-aware see
   `codecs::software_video_decoder` (built-in factories only), replays the samples since the last
   restart point and continues in software for that instance; it is logged and counted. A source
   already open keeps its decoder when the setting changes, until it is reopened. `perf.stats`
-  `decode.hardware` reports hardware vs software frames, sessions, declines and fallbacks.
+  `decode.hardware` reports hardware vs software frames, sessions, declines and fallbacks, and the
+  registered `backend`.
+  On Windows the decoder (`platform::media_foundation`) is a Direct3D-aware decoder MFT driven at
+  the level of single access units (no Source Reader: the demuxer above already delivers the
+  samples): the `avcC` / `hvcC` sample becomes Annex B, the MFT is given the process's Direct3D 11
+  video device through an `IMFDXGIDeviceManager` so it decodes with DXVA, and its NV12 (8-bit) /
+  P010 (10-bit) texture is read back through a staging texture (the one GPU to CPU copy) into
+  planar `Yuv8` / `Yuv16`. H.264 Baseline / Main / High, HEVC Main / Main 10, VP9 profiles 0 / 2 and AV1 main
+  (8- and 10-bit), 4:2:0, progressive (VP9 / AV1 samples go in as they are, not as Annex B);
+  everything else, and any stream the GPU's DXVA decoder does not list, is declined. A decoder that
+  would hand back system-memory pictures (Microsoft's decoder MFTs do that when DXVA is not
+  available) fails the stream, so the hybrid continues with our decoder and Windows' software
+  decoding is never used in its place. Zero-copy (the texture straight to wgpu) is not done yet.
   Decoders run slices on rayon, so an export worker waiting inside a decode can pick up another
   frame of the same source. A request that finds the shared decoder busy decodes with a private
   decoder.
+- **Hardware encoding.** On Windows and 64-bit Linux, `platform::nvenc::export::factory` is registered with
+  `filmcraft_export::register_encoder` (`register()` does this once), in front of the software H.264
+  encoder. It takes an export only when Export ▸ Hardware encoding (`ExportSettings.hardwareEncoding`,
+  `HardwareEncoding::Auto`) is Auto, which is off by default: hardware streams differ from ours, and
+  exports are otherwise byte-identical from run to run. NVENC (`platform::nvenc`, the driver's
+  `nvEncodeAPI64.dll` / `libnvidia-encode.so.1` loaded at run time) then takes RGBA frames, converted to 4:2:0 by the software
+  encoder's own conversion, and produces the H.264 samples and `avcC` of an MP4 / MOV. It declines
+  (the software encoder runs, counted in `export.hardware.declined`) two-pass VBR, HDR, MXF,
+  interlaced output, sizes outside NVENC's limits, and systems without an NVIDIA GPU or driver.
+  A failure during an export ends it with an error: the software encoder cannot take over a hardware
+  stream. The same NVENC session also encodes H.265 (HEVC Main 8-bit 4:2:0 SDR, or Main 10 HDR: PQ / HLG,
+  BT.2020, limited range, from the float R'G'B' pictures through `rgbf_to_yuv420_10` into P010 input
+  buffers, with the HDR10 static metadata as SEI on every IDR for PQ; the `hvcC` is built from the SPS
+  the encoder wrote). An HDR sequence exports as HDR H.265 only where a registered probe says so
+  (`filmcraft_export::register_hdr_probe`, `hdr_available`; NVENC with 10-bit support), otherwise it is
+  tone-mapped to SDR as on macOS: `register()` hands `platform::nvenc::hevc_available` to
+  `filmcraft_export::register_format_probe`, so the H.265 format exists where an HEVC encoder does,
+  and choosing it is the opt-in (the Hardware encoding toggle governs H.264 only). With no software
+  H.265 encoder, what NVENC declines is counted and ends the export with an error that says why.
+  On macOS, `platform::hardware_encode` (VideoToolbox H.264, opt-in the same way, and H.265) is
+  registered likewise. It too takes the RGBA pictures as they are (`32BGRA` buffers tagged BT.709)
+  and VideoToolbox converts them to 4:2:0, so the encode thread only copies: converting on the CPU
+  there competed with the render of the next frames for the thread pool and cost more than the
+  hardware encode (20 ms a 1080p frame). A VideoToolbox that refuses RGB input on the first picture
+  gets the CPU's conversion into NV12 instead, and the export goes on.
 - **Compositor.** `render` is the reference for monitors, thumbnails and export. `render::plan`
   turns a frame into GPU layers, each with its opacity and blend mode. All 27 blend modes run on the
   GPU (`filmcraft-gpu`): Normal and Dissolve with fixed-function "over" blending, the others by
@@ -258,17 +316,41 @@ file ──► codecs (MP4/MOV, MKV, audio)        demux + decode, GOP-aware see
   Balance, Leave Color, Change to Color, Color Pass, Color Replace, Channel Mix, ASC CDL, Gamma
   Correction, Levels, Extract, Invert, Posterize, Alpha Adjust, Gaussian Blur and Directional Blur
   (and their legacy aliases), Camera Blur, Sharpen, Unsharp Mask, Crop, Edge Feather, Transform,
-  Horizontal / Vertical Flip, Mirror and Offset. When every enabled effect of a media clip is in
+  Horizontal / Vertical Flip, Mirror, Offset, Vignette and Video Limiter. When every enabled effect of a media clip is in
   that set (unmasked, with finite parameters, and no Transform shrinking the picture below half
   size, which the CPU pre-filters), the plan hands the GPU the clip's source with
   the effects' parameters evaluated at that time: the source is drawn into an `Rgba32Float`
   working image at the size the CPU decodes it, each effect runs as compute passes with the CPU
   reference's math (effects, then Motion, then Opacity / blend, as on the CPU), and the result is
-  placed like any layer. Other standard effects, effect and opacity masks, adjustment layers,
-  nested sequences and non-dissolve transitions are rendered on the CPU for that layer or frame
+  placed like any layer. An adjustment layer that covers the whole frame at 100 % opacity in
+  Normal, unmasked and with only effects from that set, is a step of the plan: its effects run the
+  same way on the composite of the tracks below it, and the result replaces it before the tracks
+  above are drawn. The plan is made for the device that composites it (`plan::DeviceCaps`, part
+  of the monitor's frame key and of the export's renderer pool): on one without an effect stage,
+  or for a frame larger than its textures, the adjustment layer sends the frame to the CPU
+  renderer on the thread that plans it, not on the UI thread or inside a renderer. Other standard
+  effects, effect and opacity masks, the other adjustment layers,
+  nested sequences (except a plain one, whose own layers go into the plan: same frame size and
+  colour settings as its parent, nothing on the clip that changes the picture, every layer inside
+  blended normally) and non-dissolve transitions are rendered on the CPU for that layer or frame
   and handed to the GPU as an image (a layer image keeps its clip's blend mode), so both paths
   give the same picture. Setting `FILMCRAFT_CPU_COMPOSITE=1`
   forces the CPU path in the desktop app.
+- **CPU compositor shortcuts.** The CPU compositor, which is what export runs, works on
+  premultiplied linear `f32` images, 33 MB at 1080p, so what it does not allocate, convert or mix
+  is time saved. Three shortcuts, each of which gives the general path's bits (compared bit for
+  bit, with every blend mode, in `render/src/region_tests.rs`): the canvas stays unallocated
+  until a layer needs it, and an opaque bottom layer (an 8-bit or 16-bit Y'CbCr frame without an
+  alpha plane, opacity 100 %, Normal) simply becomes the canvas; a plain media frame with an alpha
+  plane (a ProRes 4444 banner) is converted and mixed only inside the rectangle where its alpha is
+  not zero (`VideoFrame::alpha_region`, `to_linear_f32_region`, `blend::composite_at`), the rest
+  being transparent anyway; and working images are recycled through `filmcraft_frame::pool`
+  (`take_f32_overwritten` / `recycle_f32`: the buffer comes back with its old contents, so there is
+  no zero-fill) by the export pipeline once a frame is converted to 8 bits; a standalone export's
+  pipeline frees the idle float images (`pool::trim_f32`) when it goes away, so a finished export
+  leaves none behind (parts of a batch, such as render-preview segments, keep them for the next part). A clip
+  with effects, opacity masks, frame blending, colour management, or a picture that is not placed
+  one to one on the output takes the general path.
 - **Frame scheduling.** `crates/ui-egui/src/frames.rs` runs a small pool of worker threads with
   prioritised jobs: the frame on screen first, then playback prefetch, then thumbnails. The UI never
   decodes. It shows the exact frame when it is ready and holds the nearest cached frame meanwhile.
@@ -393,7 +475,11 @@ stereo / mono track ──5.1 panner───┼─► 5.1 submix / 5.1 Mix ─�
 
 ### 5.1.2 Voice-over recording
 
-**Voice-over recording** (`engine::voiceover`, `audio.voiceover.*`). The record point R is the playhead, or the In point when In/Out are set (punch-in; punch-out at Out). Playback starts the pre-roll before it (C = max(0, R − pre-roll)) and the input is captured from C. When the UI's audio clock really starts, `audio.voiceover.sync` restarts the capture there. `audio.voiceover.stop` keeps the audio from R to min(stop, Out), writes a mono 32-bit float WAV `<Name> <n>.wav` (Scratch Disks ▸ Captured, else next to the project, else the data or temporary directory), imports it and overwrites it onto the record track at R as one undo step. The record track is the given one, else the record-armed one, else the first targeted one. Input goes through the `AudioInput` trait: cpal in the desktop app (`apps/filmcraft/src/audio_in.rs`, on its own thread), and `SyntheticInput` headless, which produces exactly the samples the timeline asks for so recordings land sample-accurately. Voice-Over Record Settings (Source, Input channel, Name, Countdown Sound Cues, Pre-/Post-roll) are preferences (`voiceOver`). The track header's microphone records or stops, and a right-click opens the settings dialog. Countdown beeps (1 kHz, 100 ms, each whole second of pre-roll and at R) are mixed into playback, an overlay counts down, and playback stops at Out + post-roll.
+**Voice-over recording** (`engine::voiceover`, `audio.voiceover.*`). The record point R is the playhead, or the In point when In/Out are set (punch-in; punch-out at Out). Playback starts the pre-roll before it (C = max(0, R − pre-roll)) and the input is captured from C. When the UI's audio clock really starts, `audio.voiceover.sync` restarts the capture there. `audio.voiceover.stop` keeps the audio from R to min(stop, Out), writes a mono 32-bit float WAV `<Name> <n>.wav` (Scratch Disks ▸ Captured, else next to the project, else the data or temporary directory), imports it and overwrites it onto the record track at R as one undo step. The record track is the given one, else the record-armed one, else the first targeted one. Input goes through the `AudioInput` trait: cpal in the desktop app (`apps/filmcraft/src/audio_in.rs`, on its own thread), and `SyntheticInput` headless, which produces exactly the samples the timeline asks for so recordings land sample-accurately. Voice-Over Record Settings (Source, Input channel, Name, Countdown Sound Cues, Pre-/Post-roll) are preferences (`voiceOver`). The track header's microphone records or stops, and a right-click opens the settings dialog. Countdown beeps (1 kHz, 100 ms, each whole second of pre-roll and at R) are mixed into playback, an overlay counts down, and playback stops at Out + post-roll. A take records anywhere, also on the empty timeline past the end of the sequence: starting it never returns the playhead to the beginning, and playback keeps going past the end until the take is stopped.
+
+### 5.1.2a Text to Speech (narrations)
+
+**Narrations** (`engine::narration`, `tts.*`; voices in `filmcraft-tts`). The Text to Speech panel (Window ▸ Text to Speech) writes a script with pause markers (`[pause 1s]`), a voice, a vocal pitch and a pace; `tts.create` synthesizes it, writes `Narration <n>.wav` (mono 32-bit float, 24 kHz, where voice-over recordings go), imports it and places it at the playhead on the first free targeted audio track, else the first free audio track, else a new one, as one undo step. The settings are kept per generated item in `Project::narrations` (schema v14). Selecting a narration clip loads it into the panel; `tts.edit` writes a new file (beside the previous one) and swaps the clip to it, keeping the clip's start, duration and speed: longer speech is kept whole in the file but plays only to the clip's end; shorter speech is padded with silence to the clip's length. The old item and narration stay, so undo is exact. `tts.preview` synthesizes without changing the project and the UI plays `Session::tts_preview` on the audio output. Built-in voices are an original formant synthesizer (robotic, no download). The natural voices (feature `neural-voices` of the desktop app, off by default like `whisper`) are Kokoro-82M on candle (`filmcraft-tts`) fed by `filmcraft-tts-text` (normalizer, CMUdict + letter-to-sound); their 336 MB package is downloaded once after the user confirms (`tts.downloadVoices`, a job). The UI synthesizes with `tts.render` (a job filling `Session::tts_cache`) and then runs create / edit / preview, which use the cache.
 
 ### 5.1.3 Remix
 
@@ -410,7 +496,7 @@ Clip ▸ Remix ▸ Enable Remix / Remix Properties… / Revert Remix (`clip.remi
 
 ```text
 clip.essential (type + settings)  ──apply()──►  clip effects marked `essential`, clip gain, Volume, Panner
-essentialSound.autoMatch   BS.1770 integrated loudness of render::audio::clip_signal → match gain (clip gain)
+essentialSound.autoMatch   BS.1770 integrated loudness of render::audio::clip_signal (mono clips as one channel) → match gain (clip gain)
 essentialSound.generateDucking   trigger clips' summed level (10 ms hops) → activity regions → Volume keyframes
 ```
 
@@ -461,9 +547,11 @@ with different vertex counts hold). Feather, Opacity and Expansion are ordinary 
 - **GPU.** `filmcraft-gpu::GpuMask` evaluates the same coverage and mix in WGSL (compute), tested
   to agree with the CPU within 3·10⁻⁶. Layers with masks are CPU-rendered images in frame plans.
 - **Editing.** `masks.*` commands (add / remove / set / moveVertex / translate / addVertex /
-  removeVertex / toggleVertexSmooth / select / list); keyframe commands take `"mask": n`. The
+  removeVertex / toggleVertexSmooth / roundCorners / select / list; `masks.add` takes a
+  `cornerRadius` for a rounded rectangle); keyframe commands take `"mask": n`. The
   Program monitor overlay drags vertices, Bézier handles, the whole mask and the feather /
-  expansion handles; drags merge into one undo step.
+  expansion handles; a marquee from outside the shape or Shift-click selects several vertices,
+  which move together (`masks.moveVertex` `vertices`); drags merge into one undo step.
 - **Tracking** (`render::track`, `masks.track`): Shi–Tomasi features inside the mask, pyramidal
   Lucas–Kanade (4 levels, 15×15 window) with a forward–backward check, then RANSAC + least squares
   for Position / Position & Rotation / Position, Scale & Rotation (2D Procrustes). Each frame's
@@ -485,7 +573,9 @@ frame (Y'CbCr/RGB + metadata) ─► source colour space: Interpret Footage over
 - **Model.** `SequenceSettings::color` (`ColorPipeline`: working space Rec. 709 / Rec. 2100 PQ /
   Rec. 2100 HLG, wide gamut, auto tone map) and `Interpretation::color_space` (per media item;
   `None` = from metadata). Commands: `sequence.colorSettings`, `clip.interpretFootage`,
-  `color.spaces`, `media.colorInfo`.
+  `color.spaces`, `media.colorInfo`. Where no tag in a file gives the matrix, transfer or
+  primaries, the metadata holds a default (BT.709 transfer and primaries, the matrix by frame
+  size); `media.colorInfo`'s `assumed` and `probe`'s `video.color_assumed` say which.
 - **Maths** in `filmcraft-color` (`transform`, `log`, `spaces`; formulas and sources in
   [crates/color/README.md](../crates/color/README.md)); the renderer side is `render::colorman`.
 - **Fast path.** A Rec. 709 sequence without wide gamut and media whose metadata says Rec. 709 /
@@ -496,8 +586,8 @@ frame (Y'CbCr/RGB + metadata) ─► source colour space: Interpret Footage over
   scopes); otherwise the top-level render is converted for an SDR monitor. The other colour
   effects work on display-encoded values clamped to 0..1 (they clip HDR highlights above
   reference white).
-- **HDR grading (Lumetri).** `FxCtx::working` carries the sequence's working space. In a PQ or HLG
-  sequence Lumetri grades the working space's own signal normalised to **HDR White** (cd/m²,
+- **HDR grading (Color Grading).** `FxCtx::working` carries the sequence's working space. In a PQ or HLG
+  sequence Color Grading grades the working space's own signal normalised to **HDR White** (cd/m²,
   Basic Correction; the curves, wheels, looks and HSL Secondary use the Curves section's **HDR
   Range**): `filmcraft_color::GradeSpace` (PQ: `PQ⁻¹(nits/10000) / PQ⁻¹(white/10000)`; HLG: the
   BT.2100 inverse OOTF of a display with that peak, then the OETF). So the sliders and curves span
@@ -522,7 +612,7 @@ frame (Y'CbCr/RGB + metadata) ─► source colour space: Interpret Footage over
   wired up: there is no `platform` crate yet and eframe/wgpu do not expose an EDR surface, so HDR
   values above SDR white are never sent to the display. The scopes of an HDR sequence show the
   working-space values (waveform in cd/m² on a PQ scale, BT.2020 vectorscope).
-- **LUTs.** Lumetri Input LUT and Creative Look reference `lib:<id>` (the project's LUT library,
+- **LUTs.** Color Grading Input LUT and Creative Look reference `lib:<id>` (the project's LUT library,
   `Project::luts`, embedded `.cube`/`.3dl` text) or `builtin:<id>` (code-generated camera
   conversions and looks). `filmcraft-gpu::GpuLut` is the WGSL tetrahedral counterpart, tested for
   parity.
@@ -596,10 +686,13 @@ file.exportMedia {path, preset?, settings?, format?, range?, …}     export.qui
 | `prores` | `filmcraft-prores` (Proxy / LT / 422 / HQ) | MOV |
 | `dnxhr` | `filmcraft-dnx` (LB / SQ / HQ / HQX) | MOV (`AVdh`) |
 | `mjpeg` | built in | MOV |
-| `mxf-op1a` | DNxHR (default), ProRes or H.264 (Annex B, long GOP), `mxfVideoCodec`; PCM 16/24-bit | MXF OP1a (`filmcraft-mxf` writer: frame-wrapped, index with temporal offsets, start timecode) |
+| `aac` | `filmcraft-aac` (AAC-LC, the audio settings' bitrate) | audio only: MPEG-4 audio `.m4a` (`isobmff`, priming in an edit list), or raw ADTS when the path ends in `.aac` |
+| `mp3` | `filmcraft-mp3enc` (Layer III CBR, the audio settings' bitrate snapped to a Layer III one; 16-48 kHz, mono or stereo) | audio only: a plain `.mp3` stream of frames (no ID3 or gapless tag) |
+| `mxf-op1a` | DNxHR (default), ProRes or H.264 (Annex B, long GOP), `mxfVideoCodec`; PCM 16/24/32-bit integer | MXF OP1a (`filmcraft-mxf` writer: frame-wrapped, index with temporal offsets, start timecode) |
 | `mxf-opatom` | as `mxf-op1a` | Avid-style MXF OP-Atom: clip-wrapped picture at `path`, one mono PCM file per channel (`<stem>_A1.mxf` …, `Report::extra_files`) |
-| `png`, `tiff`, `bmp` | `image` | numbered stills `<name>000.<ext>`, `<name>001.<ext>` … |
-| `gif`, `wav`, `aiff` | built in / `image` | GIF / RIFF WAVE (`WAVE_FORMAT_EXTENSIBLE` for 5.1) / AIFF (16- or 24-bit PCM) |
+| `png`, `tiff`, `bmp`, `jpg` | `image` | numbered stills `<name>000.<ext>`, `<name>001.<ext>` … |
+| `tga`, `dpx`, `exr` | built in (`raster.rs`: uncompressed Targa 24/32-bit; DPX 10-bit RGB, SMPTE ST 268; OpenEXR half-float linear RGB(A), uncompressed scan lines) | numbered stills, as above |
+| `gif`, `wav`, `aiff` | built in / `image` | GIF / RIFF WAVE (`WAVE_FORMAT_EXTENSIBLE` for 5.1; `WAVE_FORMAT_IEEE_FLOAT` + `fact` for float) / AIFF (16-, 24- or 32-bit PCM; 32-bit float as AIFF-C `fl32`) |
 
 - **Reproducible.** The same project and settings give the same file on every machine. Frames render
   in batches of one per core, but the muxer gets them in fixed groups of 16 output frames
@@ -609,14 +702,18 @@ file.exportMedia {path, preset?, settings?, format?, range?, …}     export.qui
 - **Settings.** `ExportSettings` (serde, camelCase, every field optional) holds Video (frame size or
   Match Source, frame rate, Scale to Fit / Fill / Stretch, pixel aspect, field order — progressive
   only, profile / level, bitrate encoding, target / maximum / adaptive bitrate, keyframe distance,
-  maximum render quality), Audio (codec, sample rate, channels, AAC bitrate, PCM sample size),
+  maximum render quality), Audio (codec, sample rate, channels, AAC bitrate, PCM / FLAC sample size: `bits` 16, 24 or 32
+  and `float` for 32-bit float PCM in WAV, AIFF and QuickTime — `supports_sample_format` says
+  which a codec and container store, and Export mode greys out the rest),
   Multiplexer (audio channels: mono, stereo or 5.1, §5.1.1), Captions (burn-in or SRT / WebVTT sidecar), Effects (image / name / timecode
   overlays, video limiter, loudness normalization), Metadata (`udta` `©nam`, `©ART`, `©cpy`, `©des`,
   `©cmt`). `settings.summary()` / `estimate_bytes()` feed Export mode's Summary.
 - **Presets.** `export::presets::builtin_presets()` are our own definitions (Match Source adaptive
-  H.264 at 0.2 / 0.1 / 0.05 bits per pixel, 1080p / 2160p delivery, vertical 1080×1920, ProRes,
+  H.264 at 0.2 / 0.1 / 0.05 bits per pixel, 1080p / 2160p delivery, vertical 1080×1920 and its
+  TikTok / Instagram Reels / YouTube Shorts variants with loudness normalized to −14 LUFS, ProRes,
   DNxHR, MXF OP1a (DNxHR HQ / ProRes 422 HQ / H.264) and OP-Atom (DNxHR, Avid), image sequences, GIF, WAV / AIFF). User presets and favourites persist in
-  `<data dir>/export-presets.json` (`export.presets.*`).
+  `<data dir>/export-presets.json` (`export.presets.*`). A `bitrateKbps` in `settings` turns the
+  adaptive bitrate off, as the flat parameter does, unless `adaptiveBitrate` comes with it.
 - **Queue.** `export.queue.add` snapshots the project and the resolved settings (several sequences
   or ranges add several items); `export.queue.start` encodes ready items one after another as
   ordinary jobs, advanced by `Session::poll_persistence` / `pump_jobs` (or synchronously with
@@ -628,14 +725,19 @@ Video encoders implement `export::VideoEncoder`. Codec crates plug in with `regi
 
 Timelines can be exchanged as EDL, FCP7 XML, FCPXML, OTIO, AAF or OMF. `file.import` detects these
 formats and merges the result into the project as one undoable step (AAF / OMF embedded audio is
-written next to the document first), and `file.exportInterchange`, `file.exportEdl`,
+written next to the document first). `file.import {replace: true}` starts from an empty project
+with the same name (`file.newProject`) so a headless import→export round-trip contains only the
+imported timeline. `file.exportInterchange`, `file.exportEdl`,
 `file.exportFcpxml`, `file.exportOtio`, `file.exportAaf` and `file.exportOmf` write them.
 `file.exportInterchange {format}` takes `edl`, `xml` (the default), `fcpxml`, `otio`, `aaf` or `omf`;
 any other value is a parameter error and nothing is written. For AAF and
 OMF the engine (`engine::aaf_omf`) first prepares the audio the document references: it lists the
 used ranges (`interchange::essence::audio_needs`), decodes or renders them (clip effects through the
 export audio pipeline), embeds them or writes WAV / AIFF files, and optionally renders a video
-mixdown.
+mixdown. A nested sequence is exported the way Premiere Pro does it: a composition of its own in
+AAF (the media of the clips inside it is prepared with the rest), its sound mixed into the document
+in OMF, a nested sequence in FCP7 XML, FCPXML and OTIO, and one `AX` event in an EDL (table in the
+[interchange README](../crates/interchange/README.md)).
 
 ## 7. Automation surfaces
 
@@ -655,10 +757,11 @@ All of these dispatch the same command ids.
   settings) is in `crates/ui-egui/src/state.rs` as serde structs, so `ui.inspect` and `ui.set` can
   read and write it.
 
-- **Panels with engine data** (M8.9 / M12.6): Lumetri Scopes (`scopes.read` returns the same
+- **Panels with engine data** (M8.9 / M12.6): Video Scopes (`scopes.read` returns the same
   scopes as numbers), Metadata (`metadata.get` / `metadata.set`, one undo step per edit, stored in
   `ProjectItem::metadata`), Events (`events.list` / `events.clear`), Progress (`jobs.list` /
-  `jobs.cancel`). Timecode and Reference Monitor are frontend-only views. Their settings are
+  `jobs.cancel`), Project Notes (`project.notes` / `project.setNotes`, plain text in
+  `Project::notes`, schema v15; one typing session is one undo step). Timecode and Reference Monitor are frontend-only views. Their settings are
   `UiState::panels` (`ui.set {"panels": {...}}`).
 - **Project panel and Media Browser** (M12.7). View settings (List / Icon / Freeform, thumbnail
   and font size, Preview Area, Hover Scrub), the List view's columns, widths and sort, and ten view
@@ -683,4 +786,10 @@ The layer table reserves names for crates that don't exist yet: `riff`, `mjpeg`,
 other OS integration stays in `apps/filmcraft`.)
 Until they exist, that work lives elsewhere: keyframes and effect definitions in `project`, effects
 and the audio mix in `render`, playback in `ui-egui`, and OS integration (cpal, rfd,
-native menus) in `apps/filmcraft`. [ROADMAP.md](../ROADMAP.md) has the milestone status.
+native menus) in `apps/filmcraft`. [roadmap.md](roadmap.md) has the milestone status and [gaps.md](gaps.md) what is missing.
+
+## Revision history
+
+| Date | Change | Summary |
+|---|---|---|
+| 2026-10-10 | trivial | Status line and revision history added; milestone link points at docs/roadmap.md |

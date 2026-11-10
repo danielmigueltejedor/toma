@@ -42,10 +42,10 @@ fn ago(ms: u64) -> String {
     let now = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(ms);
     let s = now.saturating_sub(ms) / 1000;
     match s {
-        0..=4 => "just now".into(),
-        5..=59 => format!("{s} s ago"),
-        60..=3599 => format!("{} min ago", s / 60),
-        _ => format!("{} h ago", s / 3600),
+        0..=4 => tl!("just now").into(),
+        5..=59 => tlf!("{n} s ago", n = s),
+        60..=3599 => tlf!("{n} min ago", n = s / 60),
+        _ => tlf!("{n} h ago", n = s / 3600),
     }
 }
 
@@ -63,11 +63,11 @@ pub fn events(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // toolbar: [All ▾]  counts …  [Clear All]
     ui.horizontal(|ui| {
         let label = |l: Level| match l {
-            Level::Info => "All Events",
-            Level::Warning => "Warnings and Errors",
-            Level::Error => "Errors Only",
+            Level::Info => tl!("All Events"),
+            Level::Warning => tl!("Warnings and Errors"),
+            Level::Error => tl!("Errors Only"),
         };
-        let r = egui::ComboBox::from_id_salt("events-filter").selected_text(label(min)).width(150.0).show_ui(ui, |ui| {
+        let r = craft_ui::ComboBox::from_id_salt("events-filter").selected_text(label(min)).width(150.0).show_ui(ui, |ui| {
             for l in [Level::Info, Level::Warning, Level::Error] {
                 let r = ui.selectable_label(min == l, label(l));
                 elems.push((format!("events.filter.{}", l.label().to_ascii_lowercase()), r.rect, label(l).into()));
@@ -84,7 +84,7 @@ pub fn events(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             ui.label(RichText::new(log.count(l).to_string()).color(t.text_dim));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let r = ui.button("Clear All");
+            let r = ui.button(tl!("Clear All"));
             elems.push(("events.clearAll".into(), r.rect, "Clear All".into()));
             clear = r.clicked();
         });
@@ -94,7 +94,7 @@ pub fn events(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let list_h = (ui.available_height() - details_h).max(20.0);
     egui::ScrollArea::vertical().max_height(list_h).auto_shrink([false, false]).show(ui, |ui| {
         if entries.is_empty() {
-            ui.label(RichText::new("No events.").color(t.text_faint));
+            ui.label(RichText::new(tl!("No events.")).color(t.text_faint));
         }
         for (n, e) in entries.iter().enumerate() {
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
@@ -121,7 +121,7 @@ pub fn events(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if let Some(sel) = st.selected.and_then(|id| entries.iter().find(|e| e.id == id)) {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), details_h - 4.0), Sense::hover());
         ui.painter().rect_filled(r, 3.0, t.field_bg);
-        let text = format!("{} · {} · {}\n{}", sel.level.label(), sel.source, ago(sel.time_ms), sel.message);
+        let text = format!("{} · {} · {}\n{}", crate::i18n::t(sel.level.label()), sel.source, ago(sel.time_ms), sel.message);
         let g = ui.painter().layout(text, Tokens::ui(11.5), t.text, r.width() - 12.0);
         ui.painter().with_clip_rect(r).galley(r.min + vec2(6.0, 4.0), g, t.text);
         elems.push(("events.details".into(), r, sel.message.clone()));
@@ -153,10 +153,11 @@ pub fn progress(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let mut elems: Vec<(String, Rect, String)> = Vec::new();
     let mut cancel = None;
     let mut finished = show_finished;
-    let r = ui.checkbox(&mut finished, "Show finished jobs");
+    let r = ui.checkbox(&mut finished, tl!("Show finished jobs"));
     elems.push(("progress.showFinished".into(), r.rect, "Show finished jobs".into()));
     ui.add_space(4.0);
     let active = jobs.iter().filter(|j| j["finished"] != json!(true)).count();
+    let (now, texts) = (app.now(), &mut app.steady_texts);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         let mut shown = 0;
         for j in &jobs {
@@ -166,50 +167,53 @@ pub fn progress(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             }
             shown += 1;
             let id = j["id"].as_u64().unwrap_or(0);
-            let label = j["label"].as_str().unwrap_or("Job");
+            let label = crate::i18n::t(j["label"].as_str().unwrap_or("Job"));
             let frac = j["progress"].as_f64().unwrap_or(0.0).clamp(0.0, 1.0) as f32;
             let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::hover());
             ui.painter().rect_filled(r.shrink(1.0), 3.0, t.row_alt);
             ui.painter().text(r.min + vec2(8.0, 6.0), Align2::LEFT_TOP, label, Tokens::semibold(12.0), t.text);
             let err = j["result"]["error"].as_str();
             let status = match (done, err) {
-                (true, Some(e)) if e.to_ascii_lowercase().contains("cancel") => "Cancelled".to_string(),
-                (true, Some(e)) => format!("Failed: {e}"),
-                (true, None) => "Done".to_string(),
-                (false, _) => {
+                (true, Some(e)) if e.to_ascii_lowercase().contains("cancel") => tl!("Cancelled").to_string(),
+                (true, Some(e)) => tlf!("Failed: {e}", e),
+                (true, None) => tl!("Done").to_string(),
+                (false, _) => texts.get(&format!("job.{id}"), now, || {
                     let s = j["status"].as_str().unwrap_or("");
                     let n = format!("{} / {}", j["done"].as_u64().unwrap_or(0), j["total"].as_u64().unwrap_or(0));
-                    if s.is_empty() { format!("{:.0} %  ({n})", frac * 100.0) } else { format!("{:.0} %  {s}", frac * 100.0) }
-                }
+                    let left = super::eta_suffix(j);
+                    if s.is_empty() { format!("{:.0} %  ({n}){left}", frac * 100.0) } else { format!("{:.0} %  {s}{left}", frac * 100.0) }
+                }),
             };
             let bar = Rect::from_min_max(pos2(r.min.x + 8.0, r.min.y + 24.0), pos2(r.max.x - 36.0, r.min.y + 30.0));
             ui.painter().rect_filled(bar, 3.0, t.field_bg);
             let fill = if err.is_some() && done { t.danger } else { t.accent };
             let f = if done && err.is_none() { 1.0 } else { frac };
             ui.painter().rect_filled(Rect::from_min_max(bar.min, pos2(bar.min.x + bar.width() * f, bar.max.y)), 3.0, fill);
-            ui.painter().text(
-                pos2(r.min.x + 8.0, r.max.y - 4.0),
-                Align2::LEFT_BOTTOM,
-                &status,
-                Tokens::ui(10.5),
-                if err.is_some() { t.danger } else { t.text_dim },
-            );
+            let col = if err.is_some() { t.danger } else { t.text_dim };
+            if done {
+                ui.painter().text(pos2(r.min.x + 8.0, r.max.y - 4.0), Align2::LEFT_BOTTOM, &status, Tokens::ui(10.5), col);
+            } else {
+                // once a second, with digits of one width, so the counts and the time left don't shuffle the line
+                let (pieces, _) = crate::widgets::tabular_text(ui.painter(), &status, &Tokens::ui(10.5), col);
+                let h = pieces.iter().map(|(_, g)| g.size().y).fold(0.0, f32::max);
+                crate::widgets::paint_tabular(ui.painter(), pos2(r.min.x + 8.0, r.max.y - 4.0 - h / 2.0), pieces, col);
+            }
             elems.push((format!("progress.job.{id}"), r, format!("{label}: {status}")));
             if !done {
                 let cr = Rect::from_center_size(pos2(r.max.x - 18.0, bar.center().y), vec2(20.0, 20.0));
-                let resp = ui.interact(cr, egui::Id::new(("progress-cancel", id)), Sense::click());
+                let resp = ui.interact(cr, egui::Id::unique(("progress-cancel", id)), Sense::click());
                 let col = if resp.hovered() { t.danger } else { t.icon };
                 let s = Stroke::new(1.5, col);
                 ui.painter().line_segment([cr.center() + vec2(-5.0, -5.0), cr.center() + vec2(5.0, 5.0)], s);
                 ui.painter().line_segment([cr.center() + vec2(5.0, -5.0), cr.center() + vec2(-5.0, 5.0)], s);
                 elems.push((format!("progress.cancel.{id}"), cr, format!("Cancel {label}")));
-                if resp.on_hover_text("Cancel").clicked() {
+                if resp.on_hover_text(tl!("Cancel")).clicked() {
                     cancel = Some(id);
                 }
             }
         }
         if shown == 0 {
-            ui.label(RichText::new(if active == 0 { "No background jobs." } else { "" }).color(t.text_faint));
+            ui.label(RichText::new(if active == 0 { tl!("No background jobs.") } else { "" }).color(t.text_faint));
         }
     });
     for (id, r, l) in elems {
@@ -223,5 +227,40 @@ pub fn progress(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
     if active > 0 {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::Ordering;
+
+    use super::*;
+
+    /// A running job's row made its text on every repaint (four times a second), so its count and
+    /// its time left shuffled the line.
+    #[test]
+    fn a_running_jobs_row_changes_once_a_second() {
+        let mut app = FilmcraftApp::new(filmcraft_engine::Session::default());
+        let job = filmcraft_engine::Job { id: 7, label: "Proxies".into(), progress: Default::default(), result: Default::default() };
+        let p = job.progress.clone();
+        p.total.store(100, Ordering::Relaxed);
+        p.done.store(10, Ordering::Relaxed);
+        app.session.jobs.push(job);
+        let ctx = egui::Context::default();
+        let draw = |app: &mut FilmcraftApp, now: f64| {
+            app.set_now_for_test(now);
+            app.auto.begin_frame();
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                let rect = ui.max_rect();
+                progress(app, ui, rect);
+            })
+            .textures_delta
+            .clear();
+            app.auto.find("progress.job.7").map(|e| e.label.clone())
+        };
+        assert_eq!(draw(&mut app, 8.0).as_deref(), Some("Proxies: 10 %  (10 / 100)"));
+        p.done.store(50, Ordering::Relaxed);
+        assert_eq!(draw(&mut app, 8.5).as_deref(), Some("Proxies: 10 %  (10 / 100)"), "not before a second has passed");
+        assert_eq!(draw(&mut app, 9.0).as_deref(), Some("Proxies: 50 %  (50 / 100)"));
     }
 }

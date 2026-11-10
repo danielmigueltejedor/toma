@@ -26,7 +26,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use filmcraft_export::presets::{DEFAULT_PRESET, preset_key};
-use filmcraft_export::{ExportPreset, ExportSettings, Format};
+use filmcraft_export::{BitrateMode, ExportPreset, ExportSettings, Format, GpuRendering, HardwareEncoding};
 use filmcraft_project::{ItemId, Project};
 use filmcraft_time::{FrameRate, Tick, TimeRange};
 use serde::{Deserialize, Serialize};
@@ -129,16 +129,54 @@ fn parse_file(bytes: &[u8]) -> std::result::Result<PresetFile, String> {
 // settings
 // ---------------------------------------------------------------------------------------------
 
+/// `sampleRate` → `sample_rate`.
+fn camel_to_snake(k: &str) -> String {
+    let mut out = String::with_capacity(k.len() + 2);
+    for c in k.chars() {
+        if c.is_ascii_uppercase() {
+            out.push('_');
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 /// Deep-merge `patch` into `base` (objects merge, everything else replaces).
 fn merge(base: &mut Value, patch: &Value) {
     match (base, patch) {
         (Value::Object(b), Value::Object(p)) => {
             for (k, v) in p {
-                merge(b.entry(k.clone()).or_insert(Value::Null), v);
+                // Some nested settings structs serialize snake_case (`audio.sample_rate`); accept the documented camelCase
+                // spelling for them too instead of adding a second, ignored key next to the default.
+                let snake = camel_to_snake(k);
+                let key = if !b.contains_key(k) && b.contains_key(&snake) { snake } else { k.clone() };
+                merge(b.entry(key).or_insert(Value::Null), v);
             }
         }
         (b, p) => *b = p.clone(),
     }
+}
+
+/// The first key of `patch` (as a dotted path) that the resolved settings `known` don't have,
+/// matched as [`merge`] matches them (the camelCase spelling of a snake_case field counts).
+/// A null value is accepted anywhere: it sets nothing.
+fn unknown_key(known: &Value, patch: &Value, prefix: &str) -> Option<String> {
+    let (Value::Object(k), Value::Object(p)) = (known, patch) else { return None };
+    for (key, v) in p {
+        let path = if prefix.is_empty() { key.clone() } else { format!("{prefix}.{key}") };
+        match k.get(key).or_else(|| k.get(&camel_to_snake(key))) {
+            None if !v.is_null() => return Some(path),
+            Some(kv) => {
+                if let Some(found) = unknown_key(kv, v, &path) {
+                    return Some(found);
+                }
+            }
+            None => {}
+        }
+    }
+    None
 }
 
 /// A frame rate from a number of frames per second (29.97 → 30000/1001) or "num/den".
@@ -169,11 +207,32 @@ pub fn settings_from_params(s: &Session, p: &Value, cmd: &str) -> Result<(Option
     {
         settings.format = Format::from_name(f).ok_or_else(|| bad(cmd, format!("unknown format `{f}`")))?;
     }
-    if let Some(patch) = p.get("settings").filter(|v| v.is_object()) {
-        let mut v = serde_json::to_value(&settings).map_err(|e| EngineError::Other(e.to_string()))?;
-        merge(&mut v, patch);
-        settings = serde_json::from_value(v).map_err(|e| bad(cmd, format!("settings: {e}")))?;
+    apply_nested_settings(&mut settings, p, cmd)?;
+    apply_flat_overrides(&mut settings, p, cmd)?;
+    settings.validate().map_err(|e| bad(cmd, e.to_string()))?;
+    Ok((preset, settings))
+}
+
+fn apply_nested_settings(settings: &mut ExportSettings, params: &Value, cmd: &str) -> Result<()> {
+    let Some(patch) = params.get("settings").filter(|value| value.is_object()) else { return Ok(()) };
+    let mut value = serde_json::to_value(&*settings).map_err(|error| EngineError::Other(error.to_string()))?;
+    merge(&mut value, patch);
+    *settings = serde_json::from_value(value).map_err(|error| bad(cmd, format!("settings: {error}")))?;
+    // A bitrate given in `settings` is the bitrate, as the flat `bitrateKbps` is: an adaptive
+    // bitrate from the preset would otherwise replace it (`ExportSettings::resolve`).
+    if patch.get("bitrateKbps").is_some() && patch.get("adaptiveBitrate").is_none() {
+        settings.adaptive_bitrate = None;
     }
+    // serde ignores unknown keys; detect misspelled or misplaced settings before returning.
+    let known = serde_json::to_value(&*settings).map_err(|error| EngineError::Other(error.to_string()))?;
+    if let Some(path) = unknown_key(&known, patch, "") {
+        return Err(bad(cmd, format!("settings: unknown key `{path}` (see export.presets.get for the settings' keys)")));
+    }
+    Ok(())
+}
+
+/// Apply the legacy flat export parameters after preset and nested settings have been resolved.
+fn apply_flat_overrides(settings: &mut ExportSettings, p: &Value, cmd: &str) -> Result<()> {
     // flat overrides (the original file.exportMedia parameters and a few common ones)
     if let Some(f) = str_p(p, "format") {
         settings.format = Format::from_name(f).ok_or_else(|| bad(cmd, format!("unknown format `{f}`")))?;
@@ -187,18 +246,33 @@ pub fn settings_from_params(s: &Session, p: &Value, cmd: &str) -> Result<(Option
     if let Some(v) = u64_p(p, "quality") {
         settings.quality = v.min(100) as u8;
     }
-    if let Some(v) = u64_p(p, "bitrateKbps") {
-        settings.bitrate_kbps = v as u32;
+    if let Some(v) = crate::commands::checked_u32_p(p, "bitrateKbps", cmd)? {
+        settings.bitrate_kbps = v;
         settings.adaptive_bitrate = None;
     }
-    if let Some(v) = u64_p(p, "maxBitrateKbps") {
-        settings.max_bitrate_kbps = Some(v as u32);
+    if let Some(v) = crate::commands::checked_u32_p(p, "maxThreads", cmd)? {
+        settings.max_threads = v;
+    }
+    if let Some(v) = crate::commands::checked_u32_p(p, "maxBitrateKbps", cmd)? {
+        settings.max_bitrate_kbps = Some(v);
     }
     if let Some(v) = str_p(p, "bitrateMode") {
-        settings.bitrate_mode = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "bitrateMode: cbr | vbr1Pass | vbr2Pass"))?;
+        settings.bitrate_mode = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "bitrateMode: cbr | vbr1Pass | vbr2Pass | crf"))?;
     }
-    if let Some(v) = u64_p(p, "keyframeDistance") {
-        settings.keyframe_distance = Some(v as u32);
+    if let Some(v) = f64_p(p, "crf") {
+        settings.crf = v as f32;
+        if p.get("bitrateMode").is_none() {
+            settings.bitrate_mode = BitrateMode::Crf;
+        }
+    }
+    if let Some(v) = crate::commands::checked_u32_p(p, "keyframeDistance", cmd)? {
+        settings.keyframe_distance = Some(v);
+    }
+    if let Some(v) = p.get("hardwareEncoding") {
+        settings.hardware_encoding = parse_hardware_encoding(v, cmd)?;
+    }
+    if let Some(v) = p.get("gpuRendering") {
+        settings.gpu_rendering = parse_gpu_rendering(v, cmd)?;
     }
     if let Some(v) = bool_p(p, "burnCaptions") {
         settings.burn_captions = v;
@@ -209,14 +283,37 @@ pub fn settings_from_params(s: &Session, p: &Value, cmd: &str) -> Result<(Option
     if let Some(v) = str_p(p, "dnxProfile") {
         settings.dnx_profile = v.to_string();
     }
+    if let Some(v) = str_p(p, "apvProfile") {
+        settings.apv_profile = v.to_string();
+    }
+    if let Some(v) = str_p(p, "h264Profile") {
+        settings.h264_profile = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "h264Profile: baseline | main | high | high10"))?;
+    }
+    if let Some(v) = bool_p(p, "h264IntraOnly") {
+        settings.h264_intra_only = v;
+    }
+    if let Some(v) = str_p(p, "audioCodec") {
+        settings.audio.codec = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "audioCodec: auto | aac | pcm | flac"))?;
+    }
+    if let Some(v) = u64_p(p, "flacLevel") {
+        settings.audio.flac_level = v.min(8) as u8;
+    }
     if let Some(v) = str_p(p, "mxfVideoCodec") {
         settings.mxf_video_codec = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "mxfVideoCodec: dnxhr | proRes | h264"))?;
     }
     if let Some(v) = bool_p(p, "sdr") {
         settings.sdr = v;
     }
-    if let (Some(w), Some(h)) = (u64_p(p, "width"), u64_p(p, "height")) {
-        settings.frame_size = Some((w as u32, h as u32));
+    if let Some(v) = bool_p(p, "alpha") {
+        settings.alpha = v;
+    }
+    if let Some(v) = str_p(p, "exrCompression") {
+        settings.exr_compression = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "exrCompression: none | rle | zips | zip"))?;
+    }
+    match (crate::commands::checked_u32_p(p, "width", cmd)?, crate::commands::checked_u32_p(p, "height", cmd)?) {
+        (Some(w), Some(h)) => settings.frame_size = Some((w, h)),
+        (None, None) => {}
+        _ => return Err(bad(cmd, "provide both width and height")),
     }
     if let Some(v) = p.get("fps") {
         settings.frame_rate = Some(parse_rate(v).ok_or_else(|| bad(cmd, "fps: a number (29.97) or \"num/den\""))?);
@@ -228,8 +325,23 @@ pub fn settings_from_params(s: &Session, p: &Value, cmd: &str) -> Result<(Option
         settings.effects.loudness.enabled = true;
         settings.effects.loudness.target_lufs = v;
     }
-    settings.validate().map_err(|e| bad(cmd, e.to_string()))?;
-    Ok((preset, settings))
+    Ok(())
+}
+
+fn parse_hardware_encoding(value: &Value, cmd: &str) -> Result<HardwareEncoding> {
+    match value {
+        Value::Bool(true) => Ok(HardwareEncoding::Auto),
+        Value::Bool(false) => Ok(HardwareEncoding::Off),
+        other => serde_json::from_value(other.clone()).map_err(|_| bad(cmd, "hardwareEncoding: off | auto")),
+    }
+}
+
+fn parse_gpu_rendering(value: &Value, cmd: &str) -> Result<GpuRendering> {
+    match value {
+        Value::Bool(true) => Ok(GpuRendering::Auto),
+        Value::Bool(false) => Ok(GpuRendering::Off),
+        other => serde_json::from_value(other.clone()).map_err(|_| bad(cmd, "gpuRendering: off | auto")),
+    }
 }
 
 /// The sequence an export command targets (`sequence` param, else the active one).
@@ -245,25 +357,39 @@ pub fn sequence_param(s: &Session, p: &Value, cmd: &str) -> Result<ItemId> {
 
 /// Export ▸ Range: `entire` | `inOut` | `workArea` | `custom` (`start…` / `end…` times).
 /// None = the default (In/Out when set, else the whole sequence); bare `start…` / `end…` times
-/// without a `range` mean `custom`.
-pub fn range_param(s: &Session, project: &Project, seq: ItemId, v: Option<&Value>, p: &Value, cmd: &str) -> Result<Option<TimeRange>> {
+/// without a `range` mean `custom`. Returns the range and any advisories.
+pub fn range_param(s: &Session, project: &Project, seq: ItemId, v: Option<&Value>, p: &Value, cmd: &str) -> Result<(Option<TimeRange>, Vec<&'static str>)> {
+    range_with_warnings(s, project, seq, v, p, cmd)
+}
+
+/// A marked range of one sequence frame is valid, but easily left behind by accident.
+/// Explicit custom/work-area/entire ranges must not inherit this warning.
+pub fn single_frame_in_out(q: &filmcraft_project::Sequence, range: TimeRange) -> bool {
+    let rate = q.settings.frame_rate;
+    (q.mark_in.is_some() || q.mark_out.is_some()) && range.duration > Tick::ZERO && rate.frame_at(range.start) == rate.frame_at(range.end() - Tick(1))
+}
+
+const SINGLE_FRAME_WARNING: &str = "In/Out range is 1 frame; pass range: entire for the whole sequence";
+
+fn range_with_warnings(s: &Session, project: &Project, seq: ItemId, v: Option<&Value>, p: &Value, cmd: &str) -> Result<(Option<TimeRange>, Vec<&'static str>)> {
     let q = project.sequence(seq).ok_or(EngineError::NoSequence)?;
+    q.check_bounds().map_err(|e| bad(cmd, e))?;
     let fd = q.settings.frame_rate.frame_duration();
     let whole = TimeRange::from_bounds(Tick::ZERO, q.duration().max(fd));
     let mode = match v {
         None | Some(Value::Null) if time_p(s, p, "start").is_some() || time_p(s, p, "end").is_some() => "custom".to_string(),
-        None | Some(Value::Null) => return Ok(None),
+        None | Some(Value::Null) => {
+            let range = filmcraft_export::export_range(project, seq, &ExportSettings::default()).map_err(|e| bad(cmd, e.to_string()))?;
+            let warnings = if single_frame_in_out(q, range) { vec![SINGLE_FRAME_WARNING] } else { Vec::new() };
+            return Ok((None, warnings));
+        }
         Some(Value::String(m)) => m.to_ascii_lowercase().replace(['-', '_', ' ', '/'], ""),
-        Some(o @ Value::Object(_)) => return range_param(s, project, seq, o.get("mode").or(Some(&json!("custom"))), o, cmd),
+        Some(o @ Value::Object(_)) => return range_with_warnings(s, project, seq, o.get("mode").or(Some(&json!("custom"))), o, cmd),
         Some(other) => return Err(bad(cmd, format!("range: unexpected {other}"))),
     };
-    Ok(Some(match mode.as_str() {
+    let range = match mode.as_str() {
         "entire" | "entiresequence" | "sequence" | "all" => whole,
-        "inout" | "sequenceinout" => {
-            let a = q.mark_in.unwrap_or(Tick::ZERO);
-            let b = q.mark_out.map(|o| o + fd).unwrap_or(q.duration());
-            TimeRange::from_bounds(a, b.max(a + fd))
-        }
+        "inout" | "sequenceinout" => filmcraft_export::export_range(project, seq, &ExportSettings::default()).map_err(|e| bad(cmd, e.to_string()))?,
         "workarea" => q.work_area.ok_or_else(|| bad(cmd, "the sequence has no work area"))?,
         "custom" => {
             let a = time_p(s, p, "start").ok_or_else(|| bad(cmd, "custom range: need start (startTime / startSeconds / startFrame / startTimecode)"))?;
@@ -271,10 +397,14 @@ pub fn range_param(s: &Session, project: &Project, seq: ItemId, v: Option<&Value
             if b <= a {
                 return Err(bad(cmd, "custom range: end must be after start"));
             }
-            TimeRange::from_bounds(a, b)
+            let duration = b.0.checked_sub(a.0).ok_or_else(|| bad(cmd, "custom range: duration overflows"))?;
+            TimeRange::new(a, Tick(duration))
         }
         other => return Err(bad(cmd, format!("range `{other}`: entire | inOut | workArea | custom"))),
-    }))
+    };
+    filmcraft_export::validate_range(range).map_err(|e| bad(cmd, e.to_string()))?;
+    let warnings = if matches!(mode.as_str(), "inout" | "sequenceinout") && single_frame_in_out(q, range) { vec![SINGLE_FRAME_WARNING] } else { Vec::new() };
+    Ok((Some(range), warnings))
 }
 
 /// Where exports go when no path is given: next to the saved project, else ~/Movies, else the
@@ -287,34 +417,50 @@ pub fn default_export_dir(s: &Session) -> PathBuf {
         // the web build's virtual file table: written files are offered as downloads
         return PathBuf::from("/exports");
     }
-    if let Ok(h) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+    if let Some(h) = crate::media_browser::std_home_dir() {
         let movies = Path::new(&h).join("Movies");
         return if movies.is_dir() { movies } else { PathBuf::from(h) };
     }
     crate::temp_dir()
 }
 
-fn file_safe(n: &str) -> String {
+/// Convert project-derived display text into exactly one safe output filename component.
+pub fn file_safe(n: &str) -> String {
     let s: String = n.chars().map(|c| if c.is_alphanumeric() || " -_().".contains(c) { c } else { '_' }).collect();
     let s = s.trim().to_string();
-    if s.is_empty() { "Export".into() } else { s }
+    if s.is_empty() || matches!(s.as_str(), "." | "..") { "Export".into() } else { s }
 }
 
 /// `path` with the settings' extension (added when missing; image sequences keep theirs).
 fn with_extension(path: &str, settings: &ExportSettings) -> String {
     let ext = settings.extension();
     match Path::new(path).extension().and_then(|e| e.to_str()) {
-        Some(e) if e.eq_ignore_ascii_case(ext) || (settings.format == Format::TiffSequence && e.eq_ignore_ascii_case("tiff")) => path.to_string(),
+        Some(e)
+            if e.eq_ignore_ascii_case(ext)
+                || (settings.format == Format::TiffSequence && e.eq_ignore_ascii_case("tiff"))
+                || (settings.format == Format::JpegSequence && e.eq_ignore_ascii_case("jpeg"))
+                || (settings.format == Format::Aac && e.eq_ignore_ascii_case("aac")) =>
+        {
+            path.to_string()
+        }
         Some(_) if settings.is_image_sequence() || matches!(settings.format, Format::Aiff) => format!("{}.{ext}", path.rsplit_once('.').map_or(path, |x| x.0)),
         _ => format!("{path}.{ext}"),
     }
 }
 
-fn expand_home(p: &str) -> String {
-    match (p.strip_prefix("~/"), std::env::var("HOME")) {
-        (Some(rest), Ok(h)) => format!("{h}/{rest}"),
+/// `~/` expanded to the home directory (`USERPROFILE` on Windows). On Windows `/` becomes `\`:
+/// after a `\\?\` prefix (what `canonicalize` returns) `/` is not a separator.
+pub fn expand_home(p: &str) -> String {
+    let p = match (p.strip_prefix("~/"), crate::media_browser::std_home_dir()) {
+        (Some(rest), Some(h)) => format!("{h}/{rest}"),
         _ => p.to_string(),
-    }
+    };
+    if cfg!(windows) { p.replace('/', "\\") } else { p }
+}
+
+/// `x` names a folder: it ends in a separator or already exists as one.
+fn is_folder(x: &str) -> bool {
+    x.ends_with(['/', '\\']) || Path::new(x).is_dir()
 }
 
 /// Output path for `seq`: the `path` param (a file, or a directory ending in `/` or existing), else
@@ -322,7 +468,7 @@ fn expand_home(p: &str) -> String {
 fn output_path(s: &Session, p: &Value, seq: ItemId, settings: &ExportSettings, suffix: Option<usize>) -> String {
     let name = s.project.item(seq).map(|i| i.name.clone()).unwrap_or_else(|| "Sequence".into());
     let base = match str_p(p, "path").map(expand_home) {
-        Some(x) if x.ends_with('/') || x.ends_with('\\') || Path::new(&x).is_dir() => Path::new(&x).join(file_safe(&name)).to_string_lossy().to_string(),
+        Some(x) if is_folder(&x) => Path::new(&x).join(file_safe(&name)).to_string_lossy().to_string(),
         Some(x) => x,
         None => default_export_dir(s).join(file_safe(&name)).to_string_lossy().to_string(),
     };
@@ -343,7 +489,11 @@ fn write_sidecar(s: &Session, project: &Project, seq: ItemId, settings: &ExportS
     let Some(track) = q.caption_tracks.first() else { return Ok(None) };
     let format = filmcraft_captions::Format::from_name(kind).ok_or_else(|| bad("export", format!("caption sidecar `{kind}`: srt | vtt")))?;
     let range = filmcraft_export::export_range(project, seq, settings).map_err(|e| EngineError::Other(e.to_string()))?;
-    let doc = filmcraft_captions::document_from_track(track, range.start);
+    let mut doc = filmcraft_captions::document_from_track(track, range.start);
+    doc.cues.retain_mut(|cue| {
+        cue.end = cue.end.min(range.duration);
+        cue.start < cue.end
+    });
     let bytes =
         filmcraft_captions::write(&doc, format, filmcraft_captions::WriteOptions { drop_frame: q.settings.drop_frame, rate: Some(q.settings.frame_rate) });
     let ext = if format == filmcraft_captions::Format::WebVtt { "vtt" } else { kind };
@@ -368,9 +518,11 @@ pub fn spawn_export(s: &mut Session, project: Arc<Project>, seq: ItemId, mut set
     write_sidecar(s, &project, seq, &settings)?;
     let id = s.jobs.iter().map(|j| j.id).max().unwrap_or(0) + 1;
     let job = crate::Job { id, label, progress: Default::default(), result: Default::default() };
-    // Export always renders full-resolution media, whatever the proxy toggle says.
-    let provider = s.media.full_res_provider(project.clone(), s.services.clone());
+    // Export always renders full-resolution media, whatever the proxy toggle says, from its own
+    // copies of the files so the monitors keep their decoders.
+    let provider = s.media.full_res_provider(project.clone(), s.services.clone()).own_sources().recording();
     let (prog, res) = (job.progress.clone(), job.result.clone());
+    let offline = s.export_offline.entry(id).or_default().clone();
     if cfg!(target_arch = "wasm32") && !wait && filmcraft_export::stepped(format) {
         // No threads: the host advances the export between UI frames (`Session::pump_jobs`).
         let mut exporter = filmcraft_export::Exporter::new(project, seq, &settings, &prog).map_err(|e| EngineError::Other(e.to_string()))?;
@@ -381,6 +533,7 @@ pub fn spawn_export(s: &mut Session, project: Arc<Project>, seq: ItemId, mut set
     }
     let run = move || {
         let r = filmcraft_export::export(&project, seq, &settings, &provider, &prog).map_err(|e| e.to_string());
+        *offline.lock().unwrap_or_else(|x| x.into_inner()) = provider.offline_used();
         if let Err(e) = &r {
             *prog.error.lock().unwrap_or_else(|x| x.into_inner()) = Some(e.clone());
             prog.finished.store(true, Ordering::Relaxed);
@@ -419,6 +572,34 @@ fn file_name(path: &str) -> String {
     Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.to_string())
 }
 
+/// For an image sequence, the first and last numbered stills it writes: it never writes
+/// `settings.path` itself. They are counted the way `export.resolve` counts `frames` (#4009).
+fn sequence_files(project: &Project, seq: ItemId, settings: &ExportSettings) -> Option<(String, String)> {
+    if !settings.is_image_sequence() {
+        return None;
+    }
+    let q = project.sequence(seq)?;
+    let range = filmcraft_export::export_range(project, seq, settings).ok()?;
+    let r = settings.resolve(q.settings.width, q.settings.height, q.settings.frame_rate, q.settings.sample_rate);
+    let (f0, f1) = filmcraft_export::frame_span(r.rate, range);
+    let count = u64::try_from(f1.saturating_sub(f0)).ok().filter(|n| *n > 0)?;
+    Some((filmcraft_export::image_sequence_path(&settings.path, 0, count), filmcraft_export::image_sequence_path(&settings.path, count - 1, count)))
+}
+
+/// An export's `path` in a command result: the file written, for an image sequence its first
+/// still, with `lastPath` beside it and `basePath`, the name the stills are numbered from (what
+/// cleaning up after a cancelled export goes by).
+fn output_json(out: &mut Value, path: &str, files: Option<(String, String)>) {
+    match files {
+        Some((first, last)) => {
+            out["path"] = json!(first);
+            out["lastPath"] = json!(last);
+            out["basePath"] = json!(path);
+        }
+        None => out["path"] = json!(path),
+    }
+}
+
 /// `file.exportMedia`: export the active (or `sequence`) sequence now.
 pub fn export_media(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "file.exportMedia";
@@ -428,14 +609,23 @@ pub fn export_media(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(cmd, "need `path`"));
     }
     let project = s.project.clone();
-    settings.range = range_param(s, &project, seq, p.get("range"), p, cmd)?;
+    let (range, warnings) = range_with_warnings(s, &project, seq, p.get("range"), p, cmd)?;
+    settings.range = range;
     settings.path = output_path(s, p, seq, &settings, None);
     let wait = bool_p(p, "wait").unwrap_or(false);
     let path = settings.path.clone();
+    let files = sequence_files(&project, seq, &settings);
     let id = spawn_export(s, project, seq, settings, format!("Export {}", file_name(&path)), wait)?;
-    let mut out = json!({"job": id, "path": path});
+    let mut out = json!({"job": id, "warnings": warnings});
+    output_json(&mut out, &path, files);
     if let Some(pr) = preset {
         out["preset"] = json!(pr.name);
+    }
+    if !wait {
+        // where the job can be followed (#1544: it is not in `export.queue.list`, which only lists
+        // the Export Queue, so agents looked there and found nothing)
+        out["poll"] = json!("jobs.list");
+        out["cancel"] = json!("jobs.cancel");
     }
     if wait && let Some(j) = s.jobs.iter().find(|j| j.id == id) {
         let v = j.to_json();
@@ -443,6 +633,7 @@ pub fn export_media(s: &mut Session, p: &Value) -> Result<Value> {
             return Err(EngineError::Other(format!("export failed: {e}")));
         }
         out["result"] = v["result"].clone();
+        out["offlineMedia"] = offline_media_json(s, id);
     }
     Ok(out)
 }
@@ -497,6 +688,22 @@ impl ExportQueue {
     }
 }
 
+/// A `jobs.list` entry: [`crate::Job::to_json`], plus `offlineMedia` for an export job, so callers
+/// that poll an export (the bridge, MCP long exports) can report it like `file.exportMedia` does.
+pub(crate) fn job_json(s: &Session, j: &crate::Job) -> Value {
+    let mut v = j.to_json();
+    if s.export_offline.contains_key(&j.id) {
+        v["offlineMedia"] = offline_media_json(s, j.id);
+    }
+    v
+}
+
+/// The offline items export job `job` drew the slate for, as JSON (`[]` while it runs or when none).
+fn offline_media_json(s: &Session, job: u64) -> Value {
+    let list = s.export_offline.get(&job).map(|o| o.lock().unwrap_or_else(|e| e.into_inner()).clone()).unwrap_or_default();
+    serde_json::to_value(list).unwrap_or_else(|_| json!([]))
+}
+
 fn item_json(s: &Session, it: &QueueItem) -> Value {
     let job = it.job.and_then(|id| s.jobs.iter().find(|j| j.id == id));
     let (progress, status_text) = match job {
@@ -513,9 +720,11 @@ fn item_json(s: &Session, it: &QueueItem) -> Value {
         "range": it.settings.range,
         "status": it.status,
         "progress": progress,
+        "etaSeconds": job.filter(|_| it.status == QueueStatus::Encoding).and_then(|j| j.progress.eta()).map(|d| d.as_secs_f64()),
         "statusText": status_text,
         "job": it.job,
         "error": it.error,
+        "offlineMedia": it.job.map_or_else(|| json!([]), |j| offline_media_json(s, j)),
     })
 }
 
@@ -606,6 +815,7 @@ fn queue_add(s: &mut Session, p: &Value) -> Result<Value> {
     let mut ids = Vec::new();
     let mut n = 0usize;
     let mut items = Vec::new();
+    let mut warnings = Vec::new();
     for &seq in &seqs {
         for r in &ranges {
             let mut st = settings.clone();
@@ -613,13 +823,11 @@ fn queue_add(s: &mut Session, p: &Value) -> Result<Value> {
                 Some(v) if v.is_object() => *v,
                 _ => p,
             };
-            st.range = range_param(s, &project, seq, *r, times, cmd)?;
+            let (range, range_warnings) = range_param(s, &project, seq, *r, times, cmd)?;
+            st.range = range;
+            warnings.extend(range_warnings);
             // several ranges of one sequence get numbered names; several sequences their own names
-            let suffix = if many && (ranges.len() > 1 || str_p(p, "path").is_some_and(|x| !x.ends_with('/') && !Path::new(&expand_home(x)).is_dir())) {
-                Some(n)
-            } else {
-                None
-            };
+            let suffix = if many && (ranges.len() > 1 || str_p(p, "path").is_some_and(|x| !is_folder(&expand_home(x)))) { Some(n) } else { None };
             st.path = output_path(s, p, seq, &st, suffix);
             n += 1;
             items.push((seq, st));
@@ -646,7 +854,7 @@ fn queue_add(s: &mut Session, p: &Value) -> Result<Value> {
         s.export_queue.running = true;
         pump_queue(s, bool_p(p, "wait").unwrap_or(false));
     }
-    Ok(json!({"added": ids, "items": queue_list_json(s)}))
+    Ok(json!({"added": ids, "items": queue_list_json(s), "warnings": warnings}))
 }
 
 fn queue_list_json(s: &Session) -> Value {
@@ -744,7 +952,7 @@ fn queue_move(s: &mut Session, p: &Value) -> Result<Value> {
     let n = s.export_queue.items.len() as i64;
     let to = match (p.get("to").and_then(Value::as_i64), p.get("by").and_then(Value::as_i64)) {
         (Some(t), _) => t,
-        (None, Some(b)) => i as i64 + b,
+        (None, Some(b)) => (i as i64).saturating_add(b),
         _ => return Err(bad(cmd, "need `to` (index) or `by` (±n)")),
     }
     .clamp(0, n - 1) as usize;
@@ -777,14 +985,18 @@ fn quick(s: &mut Session, p: &Value) -> Result<Value> {
     let seq = sequence_param(s, &q, cmd)?;
     let (preset, mut settings) = settings_from_params(s, &q, cmd)?;
     let project = s.project.clone();
-    settings.range = range_param(s, &project, seq, q.get("range"), &q, cmd)?;
+    let (range, warnings) = range_with_warnings(s, &project, seq, q.get("range"), &q, cmd)?;
+    settings.range = range;
     settings.path = output_path(s, &q, seq, &settings, None);
     let wait = bool_p(p, "wait").unwrap_or(false);
     let path = settings.path.clone();
+    let files = sequence_files(&project, seq, &settings);
     let id = spawn_export(s, project, seq, settings, format!("Quick Export {}", file_name(&path)), wait)?;
     let used = preset.map(|x| x.name).unwrap_or(name);
     s.export_queue.quick_preset = Some(used.clone());
-    Ok(json!({"job": id, "path": path, "preset": used}))
+    let mut out = json!({"job": id, "preset": used, "warnings": warnings});
+    output_json(&mut out, &path, files);
+    Ok(out)
 }
 
 fn resolve(s: &mut Session, p: &Value) -> Result<Value> {
@@ -792,7 +1004,8 @@ fn resolve(s: &mut Session, p: &Value) -> Result<Value> {
     let seq = sequence_param(s, p, cmd)?;
     let (preset, mut settings) = settings_from_params(s, p, cmd)?;
     let project = s.project.clone();
-    settings.range = range_param(s, &project, seq, p.get("range"), p, cmd)?;
+    let (range, warnings) = range_with_warnings(s, &project, seq, p.get("range"), p, cmd)?;
+    settings.range = range;
     settings.path = output_path(s, p, seq, &settings, None);
     let q = project.sequence(seq).ok_or(EngineError::NoSequence)?;
     let range = filmcraft_export::export_range(&project, seq, &settings).map_err(|e| EngineError::Other(e.to_string()))?;
@@ -805,6 +1018,7 @@ fn resolve(s: &mut Session, p: &Value) -> Result<Value> {
         "settings": settings,
         "range": {"start": range.start.0, "duration": range.duration.0, "seconds": range.duration.seconds()},
         "frames": f1 - f0,
+        "warnings": warnings,
         "output": {"width": r.width, "height": r.height, "fps": r.rate.label(), "sampleRate": r.sample_rate, "channels": r.channels,
                    "targetKbps": r.target_kbps, "maxKbps": r.max_kbps, "keyframeDistance": r.keyint},
         "summary": summary,
@@ -830,8 +1044,14 @@ fn preset_json(s: &Session, pr: &ExportPreset, full: bool) -> Value {
     v
 }
 
+/// Lower-cased alphanumerics only, so `h264`, `h.264` and `H.264` compare equal.
+fn squash_alnum(s: &str) -> String {
+    s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+}
+
 fn presets_list(s: &mut Session, p: &Value) -> Result<Value> {
     let query = str_p(p, "query").unwrap_or("").to_ascii_lowercase();
+    let squashed = squash_alnum(&query);
     let cat = str_p(p, "category").map(str::to_ascii_lowercase);
     let fav = bool_p(p, "favorites").unwrap_or(false);
     let fmt = str_p(p, "format").and_then(Format::from_name);
@@ -844,6 +1064,10 @@ fn presets_list(s: &mut Session, p: &Value) -> Result<Value> {
                 || x.name.to_ascii_lowercase().contains(&query)
                 || x.description.to_ascii_lowercase().contains(&query)
                 || x.category.to_ascii_lowercase().contains(&query)
+                // The format id (`h264`) and label (`H.264`) are equivalent spellings.
+                || (!squashed.is_empty()
+                    && (squash_alnum(x.settings.format.id()).contains(&squashed)
+                        || squash_alnum(x.settings.format.label()).contains(&squashed)))
         })
         .filter(|x| cat.as_ref().is_none_or(|c| x.category.to_ascii_lowercase() == *c))
         .filter(|x| !fav || s.export_presets.is_favorite(&x.name))
@@ -936,16 +1160,16 @@ fn presets_import(s: &mut Session, p: &Value) -> Result<Value> {
     let bytes = s.services.read_file(path).map_err(|e| EngineError::Other(format!("{path}: {e}")))?;
     let f = parse_file(&bytes).map_err(|e| EngineError::Other(format!("{path}: {e}")))?;
     let mut names = Vec::new();
+    let mut incoming = Vec::with_capacity(f.presets.len());
     for mut pr in f.presets {
         if filmcraft_export::presets::find_builtin(&pr.name).is_some() {
             pr.name = format!("{} (imported)", pr.name);
         }
         pr.builtin = false;
-        let k = preset_key(&pr.name);
-        s.export_presets.user.retain(|x| preset_key(&x.name) != k);
         names.push(pr.name.clone());
-        s.export_presets.user.push(pr);
+        incoming.push(pr);
     }
+    crate::presets::merge_by_key(&mut s.export_presets.user, incoming, |x| preset_key(&x.name));
     s.export_presets.persist().map_err(EngineError::Other)?;
     Ok(json!({"imported": names}))
 }
@@ -989,7 +1213,7 @@ fn spec(
     run: Run,
     journal: bool,
 ) -> CommandSpec {
-    CommandSpec { id, label, menu: &[], shortcut: None, params, enabled, run, journal }
+    CommandSpec { id, label, menu: &[], shortcut: None, params, enabled, run, journal, named: crate::commands::NamedKeys::NONE }
 }
 
 pub(crate) fn commands() -> Vec<CommandSpec> {

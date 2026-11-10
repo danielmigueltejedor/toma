@@ -9,13 +9,14 @@
 //! engine feature `whisper`; without it `transcript.generate` fails with a clear error, and agents
 //! can still bring their own transcript with `transcript.set`).
 
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
 use serde_json::{Value, json};
 
 use filmcraft_edit as edit;
 use filmcraft_edit::transcript::{self as tx, CaptionRules, SeqWord};
-use filmcraft_project::{CaptionFormat, CaptionTrack, ItemId, ItemKind, TrackId, Transcript};
+use filmcraft_project::{CaptionFormat, CaptionTrack, ClipId, ItemId, ItemKind, Project, TrackId, Transcript};
 use filmcraft_speech::{Options, SpeechError, Transcriber};
 use filmcraft_time::{TICKS_PER_SECOND, Tick, TimeRange};
 
@@ -26,7 +27,7 @@ type Run = fn(&mut Session, &Value) -> Result<Value>;
 type Enabled = fn(&Session) -> std::result::Result<(), String>;
 
 fn spec(id: &'static str, label: &'static str, menu: &'static [&'static str], params: &'static str, enabled: Enabled, run: Run, journal: bool) -> CommandSpec {
-    CommandSpec { id, label, menu, shortcut: None, params, enabled, run, journal }
+    CommandSpec { id, label, menu, shortcut: None, params, enabled, run, journal, named: crate::commands::NamedKeys::NONE }
 }
 
 /// Where downloaded speech models live (`<data dir>/models`).
@@ -56,13 +57,28 @@ fn has_transcripts(s: &Session) -> std::result::Result<(), String> {
     if s.project.transcripts.is_empty() { Err("there are no transcripts".into()) } else { Ok(()) }
 }
 
+/// Why speech-to-text can't run in this build (no installed transcriber, built without `whisper`).
+pub(crate) const NO_SPEECH: &str =
+    "speech-to-text is not available in this build (built without the `whisper` feature); import a transcript with transcript.set instead";
+
+/// `transcript.generate` can run: a host installed a transcriber or the build has speech-to-text
+/// (#97: it reported enabled and then always failed).
+pub(crate) fn can_transcribe(s: &Session) -> std::result::Result<(), String> {
+    if s.transcriber.is_some() || speech_available() { Ok(()) } else { Err(NO_SPEECH.into()) }
+}
+
+/// `transcript.downloadModel` can run: built with `speech-download` (#98).
+fn can_download(_: &Session) -> std::result::Result<(), String> {
+    if cfg!(feature = "speech-download") {
+        Ok(())
+    } else {
+        Err("model downloads are not available in this build (built without the `speech-download` feature)".into())
+    }
+}
+
 /// The media item behind a project item (subclips resolve to their parent).
 fn media_item(s: &Session, item: ItemId) -> Option<ItemId> {
-    match &s.project.item(item)?.kind {
-        ItemKind::Media(_) => Some(item),
-        ItemKind::Subclip { parent, .. } => media_item(s, *parent),
-        _ => None,
-    }
+    s.project.resolve_media(item).map(|(root, _, _)| root)
 }
 
 fn ids_p(p: &Value, k: &str) -> Option<Vec<ItemId>> {
@@ -123,9 +139,7 @@ fn transcriber(s: &Session, p: &Value) -> Result<Arc<dyn Transcriber>> {
         return Err(speech_err(SpeechError::UnknownModel(model.into())));
     }
     if !filmcraft_speech::available() {
-        return Err(EngineError::Other(
-            "speech-to-text is not available in this build (built without the `whisper` feature); import a transcript with transcript.set instead".into(),
-        ));
+        return Err(EngineError::Other(NO_SPEECH.into()));
     }
     let dir = models_dir().ok_or_else(|| EngineError::Other("no data directory for speech models".into()))?;
     filmcraft_speech::load(&dir, model).map_err(speech_err)
@@ -173,6 +187,35 @@ fn generate(s: &mut Session, p: &Value) -> Result<Value> {
         Ok(())
     })?;
     Ok(json!({"items": report, "skipped": skipped}))
+}
+
+/// Enabled audio placements, including media inside nested sequences, without recursive walks.
+fn audio_placements(project: &Project) -> impl Iterator<Item = (ItemId, ClipId, ItemId)> + '_ {
+    project.sequences().filter_map(|item| item.as_sequence().map(|q| (item.id, q))).flat_map(|(sequence, q)| {
+        q.audio_tracks.iter().flat_map(|track| &track.items).filter(|clip| clip.enabled).map(move |clip| (sequence, clip.id, clip.item))
+    })
+}
+
+/// Transcribe newly placed audio once per underlying media item. This runs after the outermost
+/// editing command so every placement route shares the same scope, including paste and expansion.
+pub(crate) fn auto_transcribe_sequence_clips(s: &mut Session, before: &Project) -> Result<()> {
+    let old: HashSet<_> = audio_placements(before).collect();
+    let items: BTreeSet<_> = audio_placements(&s.project)
+        .filter(|placement| !old.contains(placement))
+        .filter_map(|(_, _, item)| s.project.resolve_media(item))
+        .filter(|(root, media, _)| media.info.has_audio() && !s.project.transcripts.contains_key(root))
+        .map(|(root, _, _)| root.0)
+        .collect();
+    if items.is_empty() {
+        return Ok(());
+    }
+    // Fold the transcript into the placement's undo step. Preserve the whole history, including
+    // its bounded oldest entry and merge key; generate's own edit must not consume another slot.
+    let history = s.history.clone();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| generate(s, &json!({"items": items}))))
+        .unwrap_or_else(|_| Err(EngineError::Other("internal error during automatic transcription (see the crash log); the clips were placed".into())));
+    s.history = history;
+    result.map(|_| ())
 }
 
 fn set(s: &mut Session, p: &Value) -> Result<Value> {
@@ -427,7 +470,7 @@ pub fn commands() -> Vec<CommandSpec> {
             "Transcribe…",
             &["Sequence", "Transcript"],
             r#"{"items":[id]?,"model":"whisper-base"?,"language":"en|auto"?,"diarize":bool?,"maxSpeakers":n?}"#,
-            always,
+            can_transcribe,
             generate,
             true,
         ),
@@ -444,7 +487,7 @@ pub fn commands() -> Vec<CommandSpec> {
         spec("transcript.inspect", "Inspect Transcript", &[], r#"{"paragraphGapSeconds":f?}"#, always, inspect, false),
         spec("transcript.search", "Search Transcript", &[], r#"{"query":str}"#, always, search, false),
         spec("transcript.models", "List Speech Models", &[], "{}", always, models, false),
-        spec("transcript.downloadModel", "Download Speech Model", &[], r#"{"model":"whisper-base"?}"#, always, download_model, true),
+        spec("transcript.downloadModel", "Download Speech Model", &[], r#"{"model":"whisper-base"?}"#, can_download, download_model, true),
         spec("transcript.select", "Mark Selected Text", &[], r#"{"from":word,"to":word?}"#, has_transcript, select, true),
         spec("transcript.extract", "Extract Selected Text", &[], r#"{"from":word,"to":word?}"#, has_transcript, |s, p| extract_or_lift(s, p, true), true),
         spec("transcript.lift", "Lift Selected Text", &[], r#"{"from":word,"to":word?}"#, has_transcript, |s, p| extract_or_lift(s, p, false), true),

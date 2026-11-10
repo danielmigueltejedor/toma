@@ -38,6 +38,12 @@ pub fn import(s: &mut Session, path: &Path) -> ItemId {
 /// One clip per track from t = 0 (`layers[0]` on V1), with (scale %, position, rotation°,
 /// opacity %) Motion/Opacity settings per layer.
 pub fn build_sequence(s: &mut Session, w: u32, h: u32, layers: &[(ItemId, f64, Option<(f64, f64)>, f64, f64)], effects: &[&str], secs: f64) -> ItemId {
+    let per_layer: Vec<&[&str]> = (0..layers.len()).map(|i| if i == 0 { effects } else { &[][..] }).collect();
+    build_sequence_fx(s, w, h, layers, &per_layer, secs)
+}
+
+/// As [`build_sequence`], with the effect ids of each layer (`per_layer[i]` on V(i+1)).
+pub fn build_sequence_fx(s: &mut Session, w: u32, h: u32, layers: &[(ItemId, f64, Option<(f64, f64)>, f64, f64)], per_layer: &[&[&str]], secs: f64) -> ItemId {
     let rate = FrameRate::FPS_23_976;
     let sizes: Vec<(u32, u32)> = layers
         .iter()
@@ -69,12 +75,15 @@ pub fn build_sequence(s: &mut Session, w: u32, h: u32, layers: &[(ItemId, f64, O
             if let Some(o) = v.effect_mut("opacity").and_then(|o| o.params.get_mut("opacity")) {
                 o.value = ParamValue::Float(opacity);
             }
-            if i == 0 {
-                for (k, id) in effects.iter().enumerate() {
+            {
+                for (k, id) in per_layer.get(i).copied().unwrap_or(&[]).iter().enumerate() {
                     let mut e = find_effect(id).unwrap_or_else(|| panic!("effect {id}")).instance();
                     let set: &[(&str, f64)] = match *id {
                         "lumetri" => &[("temperature", 18.0), ("contrast", 22.0)],
                         "sharpen" => &[("amount", 40.0)],
+                        "gaussian_blur" => &[("blurriness", 8.0)],
+                        "brightness_contrast" => &[("brightness", 10.0), ("contrast", 15.0)],
+                        "proc_amp" => &[("contrast", 110.0)],
                         _ => &[],
                     };
                     for (name, val) in set {
@@ -110,7 +119,8 @@ pub struct Display {
 impl Display {
     pub fn new(gpu: bool) -> Self {
         let gpu = if gpu {
-            let instance = eframe::wgpu::Instance::default();
+            // wgpu's instance environment variables apply (`WGPU_BACKEND`, ...), as for the app's window
+            let instance = eframe::wgpu::Instance::new(eframe::wgpu::InstanceDescriptor::new_without_display_handle().with_env());
             let adapter = pollster::block_on(instance.request_adapter(&eframe::wgpu::RequestAdapterOptions::default())).ok();
             adapter.and_then(|a| pollster::block_on(a.request_device(&eframe::wgpu::DeviceDescriptor::default())).ok()).map(|(d, q)| {
                 let c = filmcraft_gpu::GpuCompositor::new(&d, &q);
@@ -127,7 +137,10 @@ impl Display {
     }
 
     fn target(&self, seq: ItemId) -> Target {
-        if self.gpu.is_some() { Target::SequencePlan(seq) } else { Target::Sequence(seq) }
+        match &self.gpu {
+            Some((c, _)) => Target::SequencePlan(seq, c.caps()),
+            None => Target::Sequence(seq),
+        }
     }
 
     /// Show the exact frame, or the nearest earlier cached one; returns whether it was exact.
@@ -217,6 +230,12 @@ pub fn ms(d: Duration) -> f64 {
 }
 
 pub fn load_avg() -> String {
+    if let Ok(s) = std::fs::read_to_string("/proc/loadavg") {
+        let parts: Vec<&str> = s.split_whitespace().take(3).collect();
+        if !parts.is_empty() {
+            return parts.join(", ");
+        }
+    }
     Command::new("sysctl")
         .args(["-n", "vm.loadavg"])
         .output()
@@ -332,11 +351,16 @@ impl Bench {
             }
         }
         for r in &recs {
-            rep.latency.push(ms(r.finished - r.queued));
-            rep.service.push(ms(r.finished - r.started));
-            rep.job_cpu.push(ms(r.cpu));
-            rep.src_wall.push(ms(r.source_wall));
-            rep.src_cpu.push(ms(r.source_cpu));
+            // Preroll jobs run before the play clock; counting them as on-clock latency made
+            // the LongGOP seek look like a mid-play stall (`lat.max` ≈ `preroll_ms`).
+            let on_clock = r.queued >= anchor && due_at.contains_key(&r.key.frame) && r.key.target == target;
+            if on_clock {
+                rep.latency.push(ms(r.finished - r.queued));
+                rep.service.push(ms(r.finished - r.started));
+                rep.job_cpu.push(ms(r.cpu));
+                rep.src_wall.push(ms(r.source_wall));
+                rep.src_cpu.push(ms(r.source_cpu));
+            }
             if !due_at.contains_key(&r.key.frame) || r.key.target != target {
                 rep.wasted_jobs += 1;
             }
@@ -415,17 +439,8 @@ impl Bench {
     /// - `drags` playhead drags: the playhead moves `drag_frames` frames, one step per display
     ///   refresh (each refresh asks for the frame under the playhead, superseding the previous
     ///   request), then stops; time from the stop until the frame under it is on screen.
-    pub fn scrub(
-        &self,
-        s: &Session,
-        seq: ItemId,
-        display: &mut Display,
-        scale: f32,
-        seeks: usize,
-        drags: usize,
-        drag_frames: i64,
-        timeout: Duration,
-    ) -> ScrubReport {
+    pub fn scrub(&self, s: &Session, seq: ItemId, display: &mut Display, scale: f32, plan: ScrubPlan) -> ScrubReport {
+        let ScrubPlan { seeks, drags, drag_frames, timeout } = plan;
         let q = s.project.sequence(seq).expect("seq");
         let rate = q.settings.frame_rate;
         let frames = rate.frame_at(q.duration()).max(1);
@@ -486,6 +501,15 @@ impl Bench {
         rep.gop = filmcraft_codecs::gop_stats() - gop0;
         rep
     }
+}
+
+/// What [`Bench::scrub`] does: seek and drag counts, drag length in frames, per-request timeout.
+#[derive(Clone, Copy)]
+pub struct ScrubPlan {
+    pub seeks: usize,
+    pub drags: usize,
+    pub drag_frames: i64,
+    pub timeout: Duration,
 }
 
 /// Result of [`Bench::scrub`].
@@ -793,10 +817,15 @@ pub fn cli_main() {
                         // Live play (effects rendered per frame), render previews, then play twice.
                         reports.push(bench.play(&s, seq, &mut display, *scale, Tick::ZERO, &tag("live")));
                         let t0 = Instant::now();
-                        s.execute("sequence.renderEffectsInToOut", json!({"wait": true})).expect("render previews");
-                        eprintln!("  rendered previews in {:.1}s (load {})", t0.elapsed().as_secs_f64(), load_avg());
-                        reports.push(bench.play(&s, seq, &mut display, *scale, Tick::ZERO, &tag("1st after")));
-                        reports.push(bench.play(&s, seq, &mut display, *scale, Tick::ZERO, &tag("2nd after")));
+                        // every segment, not only red ones: the bench compares playing previews with playing live
+                        match s.execute("sequence.renderInToOut", json!({"wait": true})) {
+                            Ok(_) => {
+                                eprintln!("  rendered previews in {:.1}s (load {})", t0.elapsed().as_secs_f64(), load_avg());
+                                reports.push(bench.play(&s, seq, &mut display, *scale, Tick::ZERO, &tag("1st after")));
+                                reports.push(bench.play(&s, seq, &mut display, *scale, Tick::ZERO, &tag("2nd after")));
+                            }
+                            Err(e) => eprintln!("  rendering previews failed, so no runs after it: {e}"),
+                        }
                         s.previews.delete(None);
                     }
                     _ => reports.push(bench.play(&s, seq, &mut display, *scale, Tick::ZERO, &tag("play"))),

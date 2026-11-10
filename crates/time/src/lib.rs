@@ -20,6 +20,7 @@ use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 pub const TICKS_PER_SECOND: i64 = 254_016_000_000;
 
 /// A point or duration in time, in ticks.
+/// Arithmetic saturates at the i64 storage limits; representable results remain exact.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Tick(pub i64);
@@ -37,23 +38,42 @@ impl Tick {
     }
     /// Exact conversion from a count of `units` at `per_second` (e.g. samples at 48 000).
     pub fn from_units(units: i64, per_second: i64) -> Tick {
-        Tick((units as i128 * TICKS_PER_SECOND as i128).checked_div(per_second as i128).unwrap_or(0) as i64)
+        Tick(clamp_i64((units as i128 * TICKS_PER_SECOND as i128).checked_div(per_second as i128).unwrap_or(0)))
     }
     /// Floor conversion to a count of units at `per_second`.
     pub fn to_units_floor(self, per_second: i64) -> i64 {
-        (self.0 as i128 * per_second as i128).div_euclid(TICKS_PER_SECOND as i128) as i64
+        clamp_i64((self.0 as i128 * per_second as i128).div_euclid(TICKS_PER_SECOND as i128))
     }
     /// Conversion from a rational timestamp `pts * num / den` seconds (container timebases).
     pub fn from_rational(pts: i64, num: i64, den: i64) -> Tick {
-        let t = pts as i128 * num as i128 * TICKS_PER_SECOND as i128;
-        Tick(t.checked_div_euclid(den as i128).unwrap_or(0) as i64)
+        if den == 0 {
+            return Tick::ZERO;
+        }
+        let Some(t) = (pts as i128 * num as i128).checked_mul(TICKS_PER_SECOND as i128) else {
+            // A product beyond i128 divided by an i64 cannot fit back into i64.
+            return Tick(if (pts < 0) ^ (num < 0) ^ (den < 0) { i64::MIN } else { i64::MAX });
+        };
+        Tick(clamp_i64(t.div_euclid(den as i128)))
     }
     /// Inverse of [`Tick::from_rational`], floored to the timebase.
     pub fn to_rational_floor(self, num: i64, den: i64) -> i64 {
-        (self.0 as i128 * den as i128).checked_div_euclid(num as i128 * TICKS_PER_SECOND as i128).unwrap_or(0) as i64
+        clamp_i64((self.0 as i128 * den as i128).checked_div_euclid(num as i128 * TICKS_PER_SECOND as i128).unwrap_or(0))
+    }
+    /// Inverse of [`Tick::from_rational`], rounded to the nearest timebase unit (halves up).
+    ///
+    /// For finding a sample by its timestamp: containers store timestamps rounded to their
+    /// timebase (Matroska usually to 1 ms), so a stamp can sit up to half a unit after the true
+    /// time. Flooring the requested time misses every frame whose stamp was rounded up.
+    pub fn to_rational_round(self, num: i64, den: i64) -> i64 {
+        let n = self.0 as i128 * den as i128;
+        let unit = num as i128 * TICKS_PER_SECOND as i128;
+        let (n, unit) = if unit < 0 { (-n, -unit) } else { (n, unit) };
+        let (Some(q), Some(r)) = (n.checked_div_euclid(unit), n.checked_rem_euclid(unit)) else { return 0 };
+        // 0 <= r < unit: round up from the halfway point
+        clamp_i64(if r * 2 >= unit { q + 1 } else { q })
     }
     pub fn abs(self) -> Tick {
-        Tick(self.0.abs())
+        Tick(self.0.saturating_abs())
     }
     pub fn min(self, o: Tick) -> Tick {
         Tick(self.0.min(o.0))
@@ -67,40 +87,41 @@ impl Tick {
     }
     /// Scale by a rational factor (`num/den`), flooring.
     pub fn mul_ratio(self, num: i64, den: i64) -> Tick {
-        Tick((self.0 as i128 * num as i128).checked_div_euclid(den as i128).unwrap_or(0) as i64)
+        Tick(clamp_i64((self.0 as i128 * num as i128).checked_div_euclid(den as i128).unwrap_or(0)))
     }
 }
 
 impl Add for Tick {
     type Output = Tick;
     fn add(self, o: Tick) -> Tick {
-        Tick(self.0 + o.0)
+        Tick(self.0.saturating_add(o.0))
     }
 }
 impl Sub for Tick {
     type Output = Tick;
     fn sub(self, o: Tick) -> Tick {
-        Tick(self.0 - o.0)
+        Tick(self.0.saturating_sub(o.0))
     }
 }
 impl Neg for Tick {
     type Output = Tick;
     fn neg(self) -> Tick {
-        Tick(-self.0)
+        Tick(self.0.saturating_neg())
     }
 }
 impl AddAssign for Tick {
     fn add_assign(&mut self, o: Tick) {
-        self.0 += o.0;
+        self.0 = self.0.saturating_add(o.0);
     }
 }
 impl SubAssign for Tick {
     fn sub_assign(&mut self, o: Tick) {
-        self.0 -= o.0;
+        self.0 = self.0.saturating_sub(o.0);
     }
 }
 
 /// A half-open time range `[start, start + duration)`.
+/// Zero or negative durations are empty and never overlap another range.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TimeRange {
     pub start: Tick,
@@ -121,7 +142,7 @@ impl TimeRange {
         t >= self.start && t < self.end()
     }
     pub fn overlaps(&self, o: &TimeRange) -> bool {
-        self.start < o.end() && o.start < self.end()
+        !self.is_empty() && !o.is_empty() && self.start < o.end() && o.start < self.end()
     }
     pub fn intersect(&self, o: &TimeRange) -> Option<TimeRange> {
         let s = self.start.max(o.start);
@@ -175,8 +196,8 @@ impl FrameRate {
     ];
 
     pub fn new(num: i64, den: i64) -> Self {
-        let g = gcd(num.abs(), den.abs()).max(1);
-        FrameRate { num: num / g, den: den / g }
+        let g = i128::from(gcd(num.unsigned_abs(), den.unsigned_abs()).max(1));
+        FrameRate { num: (i128::from(num) / g) as i64, den: (i128::from(den) / g) as i64 }
     }
 
     /// Closest standard rate for a float (e.g. from a container's average rate).
@@ -187,6 +208,21 @@ impl FrameRate {
             }
         }
         FrameRate::new((fps * 1000.0).round() as i64, 1000)
+    }
+
+    /// Closest standard rate when `fps` is within `tolerance` of it, `tolerance` a fraction of the
+    /// rate (`0.005` is half a percent), else the nearest 1/1000 rate. A rate a container reports
+    /// from timestamps rounded to a coarse unit lands slightly off a standard rate: at 90 kHz,
+    /// whole milliseconds leave a 30 fps clip's average at 30.02 or 29.95 (#1700).
+    pub fn from_f64_within(fps: f64, tolerance: f64) -> Self {
+        let mut best: Option<(f64, FrameRate)> = None;
+        for r in Self::COMMON {
+            let off = (r.as_f64() - fps).abs();
+            if off <= tolerance * r.as_f64() && best.is_none_or(|(closest, _)| off < closest) {
+                best = Some((off, r));
+            }
+        }
+        best.map_or_else(|| Self::from_f64(fps), |(_, r)| r)
     }
 
     /// This rate if it is positive, else the default (a damaged file or project can carry a zero
@@ -200,40 +236,52 @@ impl FrameRate {
     }
 
     /// Exact duration of one frame (rounded down only for exotic rates).
+    /// Values outside the integer tick range saturate at its limit.
     pub fn frame_duration(self) -> Tick {
         let r = self.sane();
-        Tick(((TICKS_PER_SECOND as i128 * r.den as i128) / r.num as i128) as i64)
+        Tick(clamp_i64((TICKS_PER_SECOND as i128 * r.den as i128) / r.num as i128))
     }
 
-    /// Index of the frame containing `t` (floor).
+    /// Index of the frame containing `t` (floor), saturated to the integer frame range.
     pub fn frame_at(self, t: Tick) -> i64 {
-        let r = self.sane();
-        (t.0 as i128 * r.num as i128).div_euclid(TICKS_PER_SECOND as i128 * r.den as i128) as i64
+        clamp_i64(frame_index(self.sane(), t))
     }
 
-    /// Start tick of frame `f`.
+    /// Start tick of frame `f` (ceiling division).
+    ///
+    /// Uses ceiling (not floor) so that `frame_at(tick_of(f)) == f` holds for every
+    /// representable frame boundary with at least one tick per frame, even when the frame duration is not an integer number of ticks
+    /// (exotic rates like 37.516 fps where `TICKS_PER_SECOND * den / num` has a
+    /// fractional remainder).  Floor division truncates the remainder, causing each
+    /// frame boundary to drift backward by one tick until `frame_at` returns `f - 1`
+    /// instead of `f` — frame stepping then stalls or moves backward.
+    /// Values outside the integer tick range saturate at its limit.
     pub fn tick_of(self, f: i64) -> Tick {
-        let r = self.sane();
-        let n = f as i128 * TICKS_PER_SECOND as i128 * r.den as i128;
-        Tick(n.div_euclid(r.num as i128) as i64)
+        Tick(clamp_i64(frame_boundary(self.sane(), i128::from(f))))
     }
 
     /// Snap `t` down to a frame boundary.
     pub fn snap(self, t: Tick) -> Tick {
-        self.tick_of(self.frame_at(t))
+        let r = self.sane();
+        Tick(clamp_i64(frame_boundary(r, frame_index(r, t))))
     }
 
     /// Snap `t` to the nearest frame boundary.
     pub fn snap_nearest(self, t: Tick) -> Tick {
-        let a = self.snap(t);
-        let b = self.tick_of(self.frame_at(t) + 1);
-        if (t - a) <= (b - t) { a } else { b }
+        let r = self.sane();
+        // Keep the frame index and both boundaries wide until choosing the nearest. Saturating
+        // an unrepresentable upper boundary first would make it seem closer than it really is.
+        let f = frame_index(r, t);
+        let a = frame_boundary(r, f);
+        let b = frame_boundary(r, f.saturating_add(1));
+        let t = i128::from(t.0);
+        Tick(clamp_i64(if t - a <= b - t { a } else { b }))
     }
 
     /// Timecode base (frames counted per timecode second): 30 for 29.97, 24 for 23.976.
     pub fn timecode_base(self) -> i64 {
         let r = self.sane();
-        ((r.num + r.den - 1) / r.den).max(1)
+        (r.num / r.den).saturating_add(i64::from(r.num % r.den != 0)).max(1)
     }
 
     /// NTSC (x/1001) rates can use drop-frame timecode.
@@ -264,7 +312,29 @@ impl fmt::Display for FrameRate {
     }
 }
 
-fn gcd(mut a: i64, mut b: i64) -> i64 {
+/// Narrow only after applying the storage bounds, never by a wrapping integer cast.
+fn clamp_i64(value: i128) -> i64 {
+    value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+}
+
+/// Callers pass a positive rate. Products of two i64 values fit in i128.
+fn frame_index(rate: FrameRate, t: Tick) -> i128 {
+    (i128::from(t.0) * i128::from(rate.num)).div_euclid(i128::from(TICKS_PER_SECOND) * i128::from(rate.den))
+}
+
+/// Ceiling of the rational boundary. An overflowing numerator divided by an i64 rate cannot
+/// fit in an i64 tick, so saturating that intermediate preserves the public result. Boundaries
+/// derived from frame_index remain within i128 (at most one frame away from an i64 tick).
+fn frame_boundary(rate: FrameRate, frame: i128) -> i128 {
+    let Some(n) = frame.checked_mul(i128::from(TICKS_PER_SECOND)).and_then(|n| n.checked_mul(i128::from(rate.den))) else {
+        return if frame < 0 { i128::MIN } else { i128::MAX };
+    };
+    let d = i128::from(rate.num);
+    // Flooring a fractional boundary puts the tick in the preceding frame.
+    n.div_euclid(d) + i128::from(n.rem_euclid(d) != 0)
+}
+
+fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
         (a, b) = (b, a % b);
     }
@@ -298,6 +368,45 @@ impl TimeDisplay {
     }
 }
 
+impl TimeDisplay {
+    /// The video display formats (Sequence Settings ▸ Display Format, the burn-in's Time Format).
+    pub const VIDEO: [TimeDisplay; 4] = [TimeDisplay::Timecode, TimeDisplay::Feet35, TimeDisplay::Feet16, TimeDisplay::Frames];
+
+    /// Stable id used by commands and the UI: `timecode`, `feet35`, `feet16`, `frames`, `samples`, `seconds`.
+    pub fn id(self) -> &'static str {
+        match self {
+            TimeDisplay::Timecode => "timecode",
+            TimeDisplay::Frames => "frames",
+            TimeDisplay::Feet16 => "feet16",
+            TimeDisplay::Feet35 => "feet35",
+            TimeDisplay::AudioSamples => "samples",
+            TimeDisplay::Seconds => "seconds",
+        }
+    }
+
+    /// The display with this [`id`](Self::id), ignoring case.
+    pub fn from_id(id: &str) -> Option<TimeDisplay> {
+        TimeDisplay::ALL.into_iter().find(|d| d.id().eq_ignore_ascii_case(id))
+    }
+
+    /// Frames per foot of film for the Feet + Frames displays: 16 for 35mm 4-perf, 40 for 16mm.
+    pub fn frames_per_foot(self) -> Option<i64> {
+        match self {
+            TimeDisplay::Feet35 => Some(16),
+            TimeDisplay::Feet16 => Some(40),
+            _ => None,
+        }
+    }
+}
+
+/// Format a frame count as film feet + frames (`F+FF`, e.g. `2+08`; negative: `-2+08`).
+/// `frames_per_foot` below 1 is treated as 1 so a bad value never divides by zero.
+pub fn format_feet_frames(frame: i64, frames_per_foot: i64) -> String {
+    let per_ft = frames_per_foot.max(1).unsigned_abs();
+    let a = frame.unsigned_abs();
+    format!("{}{}+{:02}", if frame < 0 { "-" } else { "" }, a / per_ft, a % per_ft)
+}
+
 /// Drop-frame parameters: frames dropped per minute and nominal base.
 fn df_params(rate: FrameRate) -> (i64, i64) {
     let base = rate.timecode_base();
@@ -307,8 +416,9 @@ fn df_params(rate: FrameRate) -> (i64, i64) {
 /// Convert a frame count to SMPTE fields `(negative, h, m, s, f)`.
 pub fn frames_to_fields(frame: i64, rate: FrameRate, drop_frame: bool) -> (bool, i64, i64, i64, i64) {
     let neg = frame < 0;
-    let mut n = frame.saturating_abs();
+    let mut n = i128::from(frame).abs();
     let (drop, base) = df_params(rate);
+    let (drop, base) = (i128::from(drop), i128::from(base));
     if drop_frame && rate.supports_drop_frame() {
         let per_min = base * 60 - drop;
         let per_10 = per_min * 10 + drop;
@@ -323,18 +433,20 @@ pub fn frames_to_fields(frame: i64, rate: FrameRate, drop_frame: bool) -> (bool,
     let s = (n / base) % 60;
     let mi = (n / (base * 60)) % 60;
     let h = n / (base * 3600);
-    (neg, h, mi, s, f)
+    (neg, clamp_i64(h), clamp_i64(mi), clamp_i64(s), clamp_i64(f))
 }
 
 /// Convert SMPTE fields back to a frame count.
 pub fn fields_to_frames(h: i64, m: i64, s: i64, f: i64, rate: FrameRate, drop_frame: bool) -> i64 {
     let (drop, base) = df_params(rate);
-    let mut n = h.saturating_mul(3600).saturating_add(m.saturating_mul(60)).saturating_add(s).saturating_mul(base).saturating_add(f);
+    let seconds = i128::from(h) * 3600 + i128::from(m) * 60 + i128::from(s);
+    // Nominal drop-frame labels can exceed i64 even when the final frame count fits.
+    let mut n = seconds.saturating_mul(i128::from(base)).saturating_add(i128::from(f));
     if drop_frame && rate.supports_drop_frame() {
-        let total_min = h.saturating_mul(60).saturating_add(m);
-        n = n.saturating_sub(drop.saturating_mul(total_min - total_min / 10));
+        let total_min = i128::from(h) * 60 + i128::from(m);
+        n = n.saturating_sub(i128::from(drop) * (total_min - total_min / 10));
     }
-    n
+    clamp_i64(n)
 }
 
 /// Format a frame count as SMPTE timecode (`HH:MM:SS:FF`, or `HH;MM;SS;FF` for drop-frame).
@@ -352,18 +464,20 @@ pub fn format_time(t: Tick, rate: FrameRate, drop_frame: bool, display: TimeDisp
     match display {
         TimeDisplay::Timecode => format_timecode_frames(frame, rate, drop_frame),
         TimeDisplay::Frames => format!("{frame}"),
-        TimeDisplay::Feet35 | TimeDisplay::Feet16 => {
-            let per_ft = if display == TimeDisplay::Feet35 { 16 } else { 40 };
-            let neg = frame < 0;
-            let a = frame.abs();
-            format!("{}{}+{:02}", if neg { "-" } else { "" }, a / per_ft, a % per_ft)
-        }
+        TimeDisplay::Feet35 | TimeDisplay::Feet16 => format_feet_frames(frame, display.frames_per_foot().unwrap_or(16)),
         TimeDisplay::AudioSamples => {
-            let secs = t.0.div_euclid(TICKS_PER_SECOND);
-            let rem = Tick(t.0.rem_euclid(TICKS_PER_SECOND)).to_units_floor(sample_rate);
-            format!("{:02}:{:02}:{:02}:{rem:05}", secs / 3600, (secs / 60) % 60, secs % 60)
+            let neg = t.0 < 0;
+            let a = t.0.unsigned_abs();
+            let tps = TICKS_PER_SECOND.unsigned_abs();
+            let secs = a / tps;
+            let rem = Tick((a % tps) as i64).to_units_floor(sample_rate);
+            format!("{}{:02}:{:02}:{:02}:{rem:05}", if neg { "-" } else { "" }, secs / 3600, (secs / 60) % 60, secs % 60)
         }
-        TimeDisplay::Seconds => format!("{:.3}", t.seconds()),
+        TimeDisplay::Seconds => {
+            let s = format!("{:.3}", t.seconds());
+            // A tiny negative time rounds to zero but keeps its sign: drop it.
+            if s == "-0.000" { "0.000".to_string() } else { s }
+        }
     }
 }
 
@@ -416,7 +530,15 @@ pub fn parse_timecode(input: &str, rate: FrameRate, drop_frame: bool, current: i
     } else {
         parts
             .iter()
-            .map(|p| if p.is_empty() { Ok(0) } else { p.parse::<i64>().map_err(|_| ParseError(format!("bad field `{p}`"))) })
+            .map(|p| {
+                if p.is_empty() {
+                    Ok(0)
+                } else if !p.bytes().all(|b| b.is_ascii_digit()) {
+                    Err(ParseError(format!("bad field `{p}`")))
+                } else {
+                    p.parse::<i64>().map_err(|_| ParseError(format!("bad field `{p}`")))
+                }
+            })
             .collect::<Result<_, _>>()?
     };
     if nums.len() > 4 {
@@ -442,127 +564,52 @@ pub fn parse_timecode(input: &str, rate: FrameRate, drop_frame: bool, current: i
     })
 }
 
+/// Parse typed text in the given display format into a frame count.
+///
+/// - [`TimeDisplay::Frames`]: a plain frame count (`240`).
+/// - [`TimeDisplay::Feet35`] / [`TimeDisplay::Feet16`]: `F+FF` (`2+08`; `.`, `:`, `;` and `,` also
+///   separate); a bare number is a frame count. A frames field past the foot rolls over
+///   (`1+20` at 35mm is 36 frames), as the timecode parser does.
+/// - A leading `+` / `-` makes the value relative to `current` (a bare relative number is frames).
+/// - Every other display parses as timecode ([`parse_timecode`]).
+pub fn parse_time_display(input: &str, rate: FrameRate, drop_frame: bool, display: TimeDisplay, current: i64) -> Result<i64, ParseError> {
+    let per_ft = match display {
+        TimeDisplay::Frames => 1,
+        TimeDisplay::Feet35 | TimeDisplay::Feet16 => display.frames_per_foot().unwrap_or(16),
+        _ => return parse_timecode(input, rate, drop_frame, current),
+    };
+    let s = input.trim();
+    if s.is_empty() {
+        return Err(ParseError("empty time".into()));
+    }
+    let (rel, body) = match s.as_bytes()[0] {
+        b'+' => (Some(1), &s[1..]),
+        b'-' => (Some(-1), &s[1..]),
+        _ => (None, s),
+    };
+    let field = |p: &str| -> Result<i64, ParseError> {
+        if p.is_empty() {
+            Ok(0)
+        } else if !p.bytes().all(|b| b.is_ascii_digit()) {
+            Err(ParseError(format!("not a time: `{input}`")))
+        } else {
+            p.parse::<i64>().map_err(|_| ParseError("number too large".into()))
+        }
+    };
+    let parts: Vec<&str> = body.split(['+', ':', ';', '.', ',']).collect();
+    let frames = match parts.as_slice() {
+        [n] => field(n)?,
+        [feet, fr] if per_ft > 1 => field(feet)?.saturating_mul(per_ft).saturating_add(field(fr)?),
+        _ => return Err(ParseError(format!("not a time: `{input}`"))),
+    };
+    Ok(match rel {
+        Some(sign) => current.saturating_add(frames.saturating_mul(sign)),
+        None => frames,
+    })
+}
+
 /// Common audio sample rates offered in sequence settings.
 pub const SAMPLE_RATES: [i64; 6] = [32_000, 44_100, 48_000, 88_200, 96_000, 192_000];
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use proptest::prelude::*;
-
-    /// Damaged files and projects can carry zero / negative rates and timebases, and users or
-    /// agents can type huge timecodes: these used to panic (division by zero, overflow,
-    /// crossed `clamp` bounds).
-    #[test]
-    fn hostile_rates_and_timecodes_never_panic() {
-        let zero = FrameRate { num: 0, den: 0 };
-        for r in [
-            zero,
-            FrameRate { num: 0, den: 1 },
-            FrameRate { num: 25, den: 0 },
-            FrameRate { num: -30, den: 1 },
-            FrameRate::from_f64(0.0),
-            FrameRate::from_f64(f64::NAN),
-        ] {
-            assert_eq!(r.tick_of(10), FrameRate::default().tick_of(10));
-            assert_eq!(r.frame_at(Tick(TICKS_PER_SECOND)), FrameRate::default().frame_at(Tick(TICKS_PER_SECOND)));
-            assert!(r.frame_duration() > Tick::ZERO);
-            assert!(r.timecode_base() >= 1);
-            let _ = r.snap_nearest(Tick(12345));
-            let _ = format_time(Tick(TICKS_PER_SECOND), r, true, TimeDisplay::Timecode, 48_000);
-        }
-        assert_eq!(Tick::from_rational(100, 1, 0), Tick::ZERO);
-        assert_eq!(Tick::from_units(100, 0), Tick::ZERO);
-        assert_eq!(Tick(5).to_rational_floor(0, 1), 0);
-        assert_eq!(Tick(5).mul_ratio(1, 0), Tick::ZERO);
-        assert_eq!(Tick(5).clamp(Tick(10), Tick(0)), Tick(0));
-        let _ = format_timecode_frames(i64::MIN, FrameRate::FPS_29_97, true);
-        for tc in ["99999999999:99:99:99", "9223372036854775807", "+9223372036854775807", "99999999999;59;59;29"] {
-            let _ = parse_timecode(tc, FrameRate::FPS_29_97, true, i64::MAX);
-            let _ = parse_timecode(tc, FrameRate::FPS_25, false, i64::MIN);
-        }
-    }
-
-    #[test]
-    fn every_common_rate_is_exact() {
-        for r in FrameRate::COMMON {
-            let d = r.frame_duration();
-            assert_eq!(d.0 as i128 * r.num as i128, TICKS_PER_SECOND as i128 * r.den as i128, "{r}");
-        }
-        for sr in SAMPLE_RATES.iter().chain(&[8000, 11025, 16000, 22050, 176_400]) {
-            assert_eq!(TICKS_PER_SECOND % sr, 0, "{sr}");
-        }
-    }
-
-    #[test]
-    fn drop_frame_known_values() {
-        let r = FrameRate::FPS_29_97;
-        assert_eq!(format_timecode_frames(0, r, true), "00;00;00;00");
-        assert_eq!(format_timecode_frames(1799, r, true), "00;00;59;29");
-        assert_eq!(format_timecode_frames(1800, r, true), "00;01;00;02");
-        assert_eq!(format_timecode_frames(17982, r, true), "00;10;00;00");
-        assert_eq!(format_timecode_frames(107892, r, true), "01;00;00;00");
-        assert_eq!(format_timecode_frames(1800, r, false), "00:01:00:00");
-        let r60 = FrameRate::FPS_59_94;
-        assert_eq!(format_timecode_frames(3600, r60, true), "00;01;00;04");
-    }
-
-    #[test]
-    fn parse_forms() {
-        let r = FrameRate::FPS_25;
-        assert_eq!(parse_timecode("00:00:10:00", r, false, 0).unwrap(), 250);
-        assert_eq!(parse_timecode("1000", r, false, 0).unwrap(), 250);
-        assert_eq!(parse_timecode("1.00", r, false, 0).unwrap(), 25);
-        assert_eq!(parse_timecode("+15", r, false, 100).unwrap(), 115);
-        assert_eq!(parse_timecode("-1.00", r, false, 100).unwrap(), 75);
-        assert_eq!(parse_timecode("00;01;00;02", FrameRate::FPS_29_97, true, 0).unwrap(), 1800);
-        assert!(parse_timecode("abc", r, false, 0).is_err());
-    }
-
-    #[test]
-    fn display_modes() {
-        let r = FrameRate::FPS_24;
-        let t = r.tick_of(40);
-        assert_eq!(format_time(t, r, false, TimeDisplay::Feet35, 48000), "2+08");
-        assert_eq!(format_time(t, r, false, TimeDisplay::Feet16, 48000), "1+00");
-        assert_eq!(format_time(t, r, false, TimeDisplay::Frames, 48000), "40");
-        assert_eq!(format_time(Tick::from_units(48_001, 48_000), r, false, TimeDisplay::AudioSamples, 48000), "00:00:01:00001");
-    }
-
-    #[test]
-    fn rational_conversions() {
-        // 90 kHz MPEG timebase
-        let t = Tick::from_rational(90_000, 1, 90_000);
-        assert_eq!(t.0, TICKS_PER_SECOND);
-        assert_eq!(t.to_rational_floor(1, 90_000), 90_000);
-        assert_eq!(FrameRate::from_f64(29.97), FrameRate::FPS_29_97);
-        assert_eq!(FrameRate::FPS_23_976.label(), "23.976");
-    }
-
-    proptest! {
-        #[test]
-        fn frame_tick_roundtrip(f in -1_000_000i64..10_000_000, ri in 0usize..11) {
-            let r = FrameRate::COMMON[ri];
-            prop_assert_eq!(r.frame_at(r.tick_of(f)), f);
-            prop_assert_eq!(r.frame_at(r.tick_of(f) + r.frame_duration() - Tick(1)), f);
-        }
-
-        #[test]
-        fn drop_frame_bijection(f in 0i64..(24 * 107_892)) {
-            let r = FrameRate::FPS_29_97;
-            let (_, h, m, s, fr) = frames_to_fields(f, r, true);
-            // dropped labels never appear
-            prop_assert!(!(s == 0 && fr < 2 && m % 10 != 0));
-            prop_assert_eq!(fields_to_frames(h, m, s, fr, r, true), f);
-            let txt = format_timecode_frames(f, r, true);
-            prop_assert_eq!(parse_timecode(&txt, r, true, 0).unwrap(), f);
-        }
-
-        #[test]
-        fn ndf_parse_roundtrip(f in 0i64..10_000_000, ri in 0usize..11) {
-            let r = FrameRate::COMMON[ri];
-            let txt = format_timecode_frames(f, r, false);
-            prop_assert_eq!(parse_timecode(&txt, r, false, 0).unwrap(), f);
-        }
-    }
-}
+mod tests;

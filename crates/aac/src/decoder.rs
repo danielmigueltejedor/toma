@@ -5,8 +5,8 @@ use filmcraft_bitstream::BitReader;
 use crate::config::{AudioSpecificConfig, ElementType, ProgramConfig};
 use crate::huffman::{self, INTENSITY_HCB, INTENSITY_HCB2, NOISE_HCB, ZERO_HCB};
 use crate::ics::{IcsInfo, WindowSequence};
-use crate::mdct::{WindowShape, mdct_long, mdct_short, window};
-use crate::tables::{pow43, sf_gain};
+use crate::mdct::{MdctScratch, WindowShape, mdct_long, mdct_short, window};
+use crate::tables::{pow43, pow43_table, sf_gain};
 use crate::tns::{self, TnsData};
 use crate::{Error, Result};
 
@@ -18,6 +18,10 @@ const ID_DSE: u32 = 4;
 const ID_PCE: u32 = 5;
 const ID_FIL: u32 = 6;
 const ID_END: u32 = 7;
+
+/// `extension_type` of a fill element carrying SBR data (ISO/IEC 14496-3 §4.5.2.8.2, Table 4.121).
+const EXT_SBR_DATA: u32 = 13;
+const EXT_SBR_DATA_CRC: u32 = 14;
 
 /// One decoded `individual_channel_stream` before stereo processing and synthesis.
 struct Ics {
@@ -37,6 +41,23 @@ struct ChannelState {
     prev_shape: WindowShape,
 }
 
+/// Buffers reused by every frame so the steady state does not allocate per channel.
+struct Scratch {
+    /// Quantised values of the channel being parsed.
+    q: Vec<i32>,
+    /// Windowed output of the current block (2048) and the raw inverse transform (2048 / 256).
+    buf: Vec<f32>,
+    y: Vec<f32>,
+    long: MdctScratch,
+    short: MdctScratch,
+}
+
+impl Scratch {
+    fn new() -> Scratch {
+        Scratch { q: vec![0; 1024], buf: vec![0.0; 2048], y: vec![0.0; 2048], long: mdct_long().scratch(), short: mdct_short().scratch() }
+    }
+}
+
 /// AAC-LC decoder.
 pub struct Decoder {
     asc: AudioSpecificConfig,
@@ -45,6 +66,9 @@ pub struct Decoder {
     offsets: Vec<usize>,
     channels: Vec<ChannelState>,
     noise_state: u32,
+    scratch: Scratch,
+    /// A fill element carried SBR data (implicitly signalled HE-AAC).
+    sbr_seen: bool,
 }
 
 impl Decoder {
@@ -67,7 +91,8 @@ impl Decoder {
         if layout.is_empty() && asc.channel_config != 0 {
             return Err(Error::InvalidConfig("unsupported channel configuration"));
         }
-        let mut d = Decoder { asc, layout: Vec::new(), offsets: Vec::new(), channels: Vec::new(), noise_state: 0x2545_F491 };
+        let mut d =
+            Decoder { asc, layout: Vec::new(), offsets: Vec::new(), channels: Vec::new(), noise_state: 0x2545_F491, scratch: Scratch::new(), sbr_seen: false };
         d.set_layout(layout);
         Ok(d)
     }
@@ -89,6 +114,12 @@ impl Decoder {
     }
     pub fn sample_rate(&self) -> u32 {
         self.asc.sample_rate
+    }
+    /// Whether the stream is HE-AAC: SBR signalled in the `AudioSpecificConfig` (explicit) or SBR
+    /// data seen in a fill element of a decoded access unit (implicit). Only the AAC-LC core is
+    /// decoded, at [`Self::sample_rate`]; the SBR high band is not reconstructed.
+    pub fn sbr(&self) -> bool {
+        self.asc.sbr || self.sbr_seen
     }
     pub fn channels(&self) -> usize {
         self.channels.len()
@@ -174,7 +205,11 @@ impl Decoder {
                         count += br.read_bits(8)? as usize;
                         count -= 1;
                     }
-                    br.skip(count * 8)?;
+                    if count > 0 {
+                        let ext = br.read_bits(4)?;
+                        self.sbr_seen |= matches!(ext, EXT_SBR_DATA | EXT_SBR_DATA_CRC);
+                        br.skip(count * 8 - 4)?;
+                    }
                 }
                 _ => break, // ID_END
             }
@@ -373,7 +408,9 @@ impl Decoder {
         }
 
         // spectral_data
-        let mut q = vec![0i32; 1024];
+        let mut q = std::mem::take(&mut self.scratch.q);
+        q.clear();
+        q.resize(1024, 0);
         let mut vals = [0i32; 4];
         for g in 0..info.num_groups {
             let w0 = info.group_start(g);
@@ -405,6 +442,7 @@ impl Decoder {
         }
 
         // dequantise
+        let t43 = pow43_table();
         for g in 0..info.num_groups {
             let w0 = info.group_start(g);
             for sfb in 0..info.max_sfb {
@@ -414,14 +452,16 @@ impl Decoder {
                 }
                 let gain = sf_gain(ics.sf[g][sfb]);
                 for w in w0..w0 + info.group_len[g] as usize {
-                    for k in swb[sfb] as usize..swb[sfb + 1] as usize {
-                        let v = q[w * 128 + k];
-                        let m = pow43(v.unsigned_abs()) * gain;
-                        ics.spec[w * 128 + k] = if v < 0 { -m } else { m };
+                    let r = w * 128 + swb[sfb] as usize..w * 128 + swb[sfb + 1] as usize;
+                    for (o, &v) in ics.spec[r.clone()].iter_mut().zip(&q[r]) {
+                        let a = v.unsigned_abs();
+                        let m = t43.get(a as usize).copied().unwrap_or_else(|| pow43(a)) * gain;
+                        *o = if v < 0 { -m } else { m };
                     }
                 }
             }
         }
+        self.scratch.q = q;
         Ok(ics)
     }
 
@@ -471,23 +511,24 @@ impl Decoder {
         if let Some(t) = &ics.tns {
             tns::apply_decoder(&mut ics.spec, &ics.info, self.sf_index(), t);
         }
-        synth(&mut self.channels[ch], &ics.info, &ics.spec)
+        synth(&mut self.channels[ch], &mut self.scratch, &ics.info, &ics.spec)
     }
 }
 
 /// Inverse MDCT, windowing and overlap-add (§4.6.18), output scaled to ±1.0 full scale.
-fn synth(state: &mut ChannelState, info: &IcsInfo, spec: &[f32]) -> Vec<f32> {
-    let mut buf = vec![0f32; 2048];
+fn synth(state: &mut ChannelState, sc: &mut Scratch, info: &IcsInfo, spec: &[f32]) -> Vec<f32> {
+    let Scratch { buf, y, long, short, .. } = sc;
+    buf.fill(0.0);
     let prev = state.prev_shape;
     let cur = info.window_shape;
     let norm = 1.0 / 32768.0;
     match info.window_sequence {
         WindowSequence::EightShort => {
             let t = mdct_short();
-            let mut y = vec![0f32; 256];
+            let y = &mut y[..256];
             let wc = window(cur, false);
             for w in 0..8 {
-                t.inverse(&spec[w * 128..(w + 1) * 128], &mut y);
+                t.inverse_with(&spec[w * 128..(w + 1) * 128], y, short);
                 let wl = window(if w == 0 { prev } else { cur }, false);
                 let off = 448 + 128 * w;
                 let s = norm / 128.0;
@@ -498,8 +539,7 @@ fn synth(state: &mut ChannelState, info: &IcsInfo, spec: &[f32]) -> Vec<f32> {
             }
         }
         seq => {
-            let mut y = vec![0f32; 2048];
-            mdct_long().inverse(&spec[..1024], &mut y);
+            mdct_long().inverse_with(&spec[..1024], y, long);
             let s = norm / 1024.0;
             match seq {
                 WindowSequence::LongStop => {
@@ -541,4 +581,28 @@ fn synth(state: &mut ChannelState, info: &IcsInfo, spec: &[f32]) -> Vec<f32> {
     state.overlap.copy_from_slice(&buf[1024..]);
     state.prev_shape = cur;
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Implicitly signalled HE-AAC (an AAC-LC config) is recognised from the SBR fill element.
+    #[test]
+    fn sbr_fill_element_marks_implicit_he_aac() {
+        // AAC-LC, 22.05 kHz, stereo
+        let mut dec = Decoder::new(&[0x13, 0x90]).unwrap();
+        assert!(!dec.sbr());
+        // ID_FIL, count 1, extension_type EXT_SBR_DATA (+ 4 bits of payload), ID_END
+        let _ = dec.decode(&[0b1100_0011, 0b1010_0001, 0b1100_0000]);
+        assert!(dec.sbr());
+        // other fill payloads (EXT_FILL) don't
+        let mut dec = Decoder::new(&[0x13, 0x90]).unwrap();
+        let _ = dec.decode(&[0b1100_0010, 0b0000_0001, 0b1100_0000]);
+        assert!(!dec.sbr());
+        // explicit signalling: AOT 5, core 22.05 kHz, stereo, extension 44.1 kHz, core AOT 2
+        let dec = Decoder::new(&[0x2B, 0x92, 0x08, 0x00]).unwrap();
+        assert!(dec.sbr());
+        assert_eq!(dec.sample_rate(), 22_050);
+    }
 }

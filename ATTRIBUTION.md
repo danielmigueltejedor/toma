@@ -9,6 +9,18 @@ iconography, images or other Adobe assets; open licences only; every asset attri
 
 | Asset | Author | Source | Licence |
 |---|---|---|---|
+| `crates/ui-egui/src/i18n/sv.tsv` | FilmCraft contributors | Original work: clean-room Swedish interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/it.tsv` | FilmCraft contributors | Original work: clean-room Italian interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/tr.tsv` | FilmCraft contributors | Original work: clean-room Turkish interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/id.tsv` | FilmCraft contributors | Original work: clean-room Indonesian interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/ko.tsv` | FilmCraft contributors | Original work: clean-room Korean interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/cs.tsv` | FilmCraft contributors | Original work: AI-assisted Czech interface translations; not yet proofread by a native speaker | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/fr.tsv` | FilmCraft contributors | Original work: clean-room French interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/pl.tsv` | FilmCraft contributors | Original work: clean-room Polish interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/pt-br.tsv` | FilmCraft contributors | Original work: clean-room Brazilian Portuguese interface translations | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/bs.tsv` | FilmCraft contributors | Original work: AI-assisted clean-room Bosnian interface translations, not yet native-reviewed | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/ru.tsv` | FilmCraft contributors | Original work: clean-room Russian interface translation (full catalog) | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/i18n/uk.tsv` | FilmCraft contributors | Original work: clean-room Ukrainian interface translations | MIT OR Apache-2.0 |
 | `assets/fonts/Inter-Regular.ttf` | The Inter Project Authors | https://github.com/rsms/inter | OFL-1.1 (`assets/fonts/OFL-Inter.txt`) |
 | `assets/fonts/Inter-Medium.ttf` | The Inter Project Authors | https://github.com/rsms/inter | OFL-1.1 (`assets/fonts/OFL-Inter.txt`) |
 | `assets/fonts/Inter-SemiBold.ttf` | The Inter Project Authors | https://github.com/rsms/inter | OFL-1.1 (`assets/fonts/OFL-Inter.txt`) |
@@ -21,11 +33,13 @@ iconography, images or other Adobe assets; open licences only; every asset attri
 | `docs/images/filmcraft-keyframes.png` | FilmCraft contributors | Original work: FilmCraft screenshot; frames from Night of the Living Dead (1968, public domain) | MIT OR Apache-2.0; film frames public domain |
 | `docs/images/filmcraft-export.png` | FilmCraft contributors | Original work: FilmCraft screenshot; frame from Night of the Living Dead (1968, public domain) | MIT OR Apache-2.0; film frames public domain |
 | `docs/images/filmcraft-assembly.png` | FilmCraft contributors | Original work: FilmCraft screenshot; frames from Carnival of Souls (1962), Night of the Living Dead (1968), thumbnails of all demo media | MIT OR Apache-2.0; film frames public domain |
-| `docs/images/filmcraft-lumetri.png` | FilmCraft contributors | Original work: FilmCraft UI crop (Lumetri Color panel) | MIT OR Apache-2.0 |
+| `docs/images/filmcraft-color-panel.png` | FilmCraft contributors | Original work: FilmCraft UI crop (color grading panel) | MIT OR Apache-2.0 |
 | `docs/images/filmcraft-scopes.png` | FilmCraft contributors | Original work: FilmCraft UI crop (scopes of a Charade (1963) frame, public domain) | MIT OR Apache-2.0 |
 | `docs/images/filmcraft-effects.png` | FilmCraft contributors | Original work: FilmCraft screenshot crop; NASA Earth Views (US Government work, public domain) | MIT OR Apache-2.0; footage public domain |
 | `docs/images/filmcraft-timeline.png` | FilmCraft contributors | Original work: FilmCraft UI crop; thumbnails from Night of the Living Dead (1968) and Carnival of Souls (1962), CC0 Chopin waveform | MIT OR Apache-2.0; film frames public domain |
 | `assets/app-icon/filmcraft.svg` | Toma contributors; source portrait: Wikimedia Commons | App icon: portrait of Georges Méliès over the app colour, derived from [Méliès portrait (cropped).png](https://commons.wikimedia.org/wiki/File:Méliès_portrait_(cropped).png) | MIT OR Apache-2.0 (`assets/app-icon/LICENSE.txt`); source portrait: public domain |
+| `packaging/macos/dmg/background.svg` | @XusBadia | Original work: FilmCraft macOS DMG window background, derived from the FilmCraft app icon (`assets/app-icon/filmcraft.svg`); rendered to `background.tiff` by `packaging/macos/dmg/generate.py` | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) |
+| `packaging/macos/dmg/background.tiff` | @XusBadia | Rendered from `packaging/macos/dmg/background.svg` by `packaging/macos/dmg/generate.py` | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) |
 | `assets/app-icon/filmcraft-small.svg` | Toma contributors; source portrait: Wikimedia Commons | App icon: portrait of Georges Méliès over the app colour, derived from [Méliès portrait (cropped).png](https://commons.wikimedia.org/wiki/File:Méliès_portrait_(cropped).png) | MIT OR Apache-2.0 (`assets/app-icon/LICENSE.txt`); source portrait: public domain |
 | `assets/app-icon/filmcraft-1024.png` | Toma contributors; source portrait: Wikimedia Commons | App icon: portrait of Georges Méliès over the app colour, derived from [Méliès portrait (cropped).png](https://commons.wikimedia.org/wiki/File:Méliès_portrait_(cropped).png) | MIT OR Apache-2.0 (`assets/app-icon/LICENSE.txt`); source portrait: public domain |
 | `assets/app-icon/filmcraft-macos-512.png` | Toma contributors; source portrait: Wikimedia Commons | App icon: portrait of Georges Méliès over the app colour, derived from [Méliès portrait (cropped).png](https://commons.wikimedia.org/wiki/File:Méliès_portrait_(cropped).png) | MIT OR Apache-2.0 (`assets/app-icon/LICENSE.txt`); source portrait: public domain |
@@ -61,7 +75,7 @@ procedural demo footage (`crates/media/src/generators.rs`); no external media. R
 | `crates/golden/goldens/graphic_title.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `graphic_title`) from procedurally generated media and bundled OFL fonts | MIT OR Apache-2.0 |
 | `crates/golden/goldens/lumetri_basic.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `lumetri_basic`) from procedurally generated media | MIT OR Apache-2.0 |
 | `crates/golden/goldens/lumetri_hdr_pq.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `lumetri_hdr_pq`) from procedurally generated media re-encoded as Rec. 2100 PQ | MIT OR Apache-2.0 |
-| `crates/golden/goldens/lumetri_presets_grid.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, `lumetri_presets_grid`): FilmCraft's own Lumetri presets on its procedural preview picture | MIT OR Apache-2.0 |
+| `crates/golden/goldens/lumetri_presets_grid.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, `lumetri_presets_grid`): FilmCraft's own Color Grading presets on its procedural preview picture | MIT OR Apache-2.0 |
 | `crates/golden/goldens/text_burnin.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `text_burnin`) from procedurally generated media | MIT OR Apache-2.0 |
 | `crates/golden/goldens/transform_opacity.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `transform_opacity`) from procedurally generated media | MIT OR Apache-2.0 |
 | `crates/golden/goldens/transition_cross_dissolve.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `transition_cross_dissolve`) from procedurally generated media | MIT OR Apache-2.0 |
@@ -77,6 +91,7 @@ procedural demo footage (`crates/media/src/generators.rs`); no external media. R
 | `crates/golden/goldens/vfx_spacer_stroke_shadow.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `vfx_spacer_stroke_shadow`) from procedurally generated media | MIT OR Apache-2.0 |
 | `crates/golden/goldens/vfx_vr_rotate.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `vfx_vr_rotate`) from procedurally generated media | MIT OR Apache-2.0 |
 | `crates/golden/goldens/vfx_stylize.png` | FilmCraft contributors | Original work: golden reference rendered by FilmCraft (crates/golden/tests/golden.rs, scene `vfx_stylize`) from procedurally generated media | MIT OR Apache-2.0 |
+| `crates/ac3/src/golden_frames.bin` | FilmCraft contributors | Original work: 12 AC-3 / E-AC-3 syncframes (6 KB) encoded by ffmpeg from synthetic tones and noise, test vector for crates/ac3 | MIT OR Apache-2.0 |
 
 ## Third-party media shown in screenshots
 
@@ -99,11 +114,12 @@ is traced or derived from Adobe artwork.
 | Asset | Where |
 |---|---|
 | UI icons (tools, transport, panels, header) | `crates/ui-egui/src/icons.rs`: vector paths on a 16×16 grid |
+| Source and Program range braces and trim hover cues | `crates/ui-egui/src/panels/monitor.rs` and `source_range.rs`: original generic vector shapes by FilmCraft contributors, MIT OR Apache-2.0; no third-party artwork |
 | Align / distribute / paragraph-alignment glyphs in the graphics panel | `crates/ui-egui/src/panels/graphics.rs` (`align_glyph`): bars and lines drawn with the egui painter |
 | Demo footage (ocean sunset, aurora, city night, dunes, forest, plasma), bars and tone, counting leader, colour matte | `crates/media/src/generators.rs` |
 | Built-in graphics templates (Lower Third – Slab / Rule, Ticker – Crawl, Title – Centered / Boxed, End Credits – Roll, Callout – Pointer / Tag) and their placeholder text | `crates/project/src/gtemplate.rs` (`builtin_templates`): original designs defined in code with the bundled Inter font; thumbnails are rendered at runtime, no template, image or font files |
-| Lumetri "Look" presets (Teal & Orange, Warm Film, …) | `crates/render/src/effects.rs` (`apply_look`): procedural colour transforms, not LUT files |
-| Lumetri Presets (Effects panel: Cinematic, Film Emulation, Monochrome, Technical) and their preview picture | `crates/render/src/lumetri_presets.rs`: Lumetri parameter values chosen by contributors, descriptive names, and a procedural preview picture (dusk sky, ridges, lake, grey ramp, colour chips) |
+| Color Grading "Look" presets (Teal & Orange, Warm Film, …) | `crates/render/src/effects.rs` (`apply_look`): procedural colour transforms, not LUT files |
+| Color Grading Presets (Effects panel: Cinematic, Film Emulation, Monochrome, Technical) and their preview picture | `crates/render/src/lumetri_presets.rs`: Color Grading parameter values chosen by contributors, descriptive names, and a procedural preview picture (dusk sky, ridges, lake, grey ramp, colour chips) |
 | Colour palette and layout metrics | `crates/ui-egui/src/theme.rs`: colour values and sizes only; no artwork |
 
 ## Optional build input: craft-fonts
@@ -120,6 +136,10 @@ carry each font's licence as `OFL-<family>.txt`.
 | BIZ UDPGothic Regular, Bold (Morisawa) | Japanese UI text; Japanese fallback for sans titles (the web build embeds only Regular) | OFL-1.1 |
 | Shippori Mincho Regular (FONTDASU) | Japanese fallback for serif titles (native builds) | OFL-1.1 |
 | BIZ UDMincho Regular (Morisawa) | Japanese fallback for serif titles (native builds) | OFL-1.1 |
+| Noto Sans CJK SC Regular (Google, Adobe) | Chinese UI text and media names; Chinese fallback for titles (native builds) | OFL-1.1 |
+| Noto Sans Arabic Regular (Google) | Arabic UI text; Arabic fallback for titles (native builds) | OFL-1.1 |
+| Noto Sans Thai Regular (Google) | Thai fallback for titles (native builds) | OFL-1.1 |
+| Noto Sans Georgian Regular (Google) | Georgian fallback for titles (native builds) | OFL-1.1 |
 
 ## First-party brand marks
 
@@ -139,6 +159,15 @@ remove them (AGENTS.md §1.8).
 | `docs/brand/artcraft-mark.png` | ArtCraft Team | Original work: first-party ArtCraft brand mark (ArtCraft symbol ("A" mark), blue) | ArtCraft trademark, not open source; `docs/brand/LICENSE-brand.txt` (not MIT/Apache) |
 | `docs/brand/artcraft-mark.svg` | ArtCraft Team | Original work: first-party ArtCraft brand mark (ArtCraft symbol ("A" mark), blue) | ArtCraft trademark, not open source; `docs/brand/LICENSE-brand.txt` (not MIT/Apache) |
 
+## Third-party source code
+
+Source files that are transcribed from third-party code rather than written from scratch. Each keeps
+the original copyright and permission notice in its header.
+
+| File | Author | Source | Licence |
+|---|---|---|---|
+| `crates/platform/src/nvenc/ffi.rs` | NVIDIA Corporation (`nvEncodeAPI.h`); FilmCraft contributors (Rust transcription) | Structures (including `NV_ENC_CONFIG_HEVC` and its bit-field masks, `NV_ENC_PIC_PARAMS_HEVC`, `NV_ENC_SEI_PAYLOAD`, `NV_ENC_TIME_CODE`), function table, codec / profile GUIDs (H.264, HEVC Main, HEVC Main 10) and constants (`NV_ENC_LEVEL_HEVC_*`, tier, CU size, `NV_ENC_BUFFER_FORMAT_YUV420_10BIT`, `NV_ENC_CAPS_SUPPORT_10BIT_ENCODE`, BT.2020 / PQ / HLG VUI codes) transcribed from `nvEncodeAPI.h`, NVIDIA Video Codec SDK, API 12.1 (https://developer.nvidia.com/video-codec-sdk) | MIT (Copyright (c) 2010-2023 NVIDIA Corporation; notice kept in the file header) |
+
 ## Downloaded at runtime
 
 These files are never in the repository or the app bundle. FilmCraft downloads them into the
@@ -149,3 +178,12 @@ SHA-256 (`crates/speech/src/models.rs`, `docs/transcripts.md`).
 | Asset | Author | Source | Licence |
 |---|---|---|---|
 | Whisper tiny / base / small speech-recognition weights (`model.safetensors`, `config.json`, `generation_config.json`, `tokenizer.json`) | OpenAI | `https://huggingface.co/openai/whisper-{tiny,base,small}` (revisions `169d4a43…`, `e37978b9…`, `973afd24…`); weights released with `https://github.com/openai/whisper` | MIT (weights and code, github.com/openai/whisper); the Hugging Face conversion is labelled Apache-2.0 |
+
+## egui dependency fonts
+
+| Asset | Author | Source | Licence | Use |
+|---|---|---|---|---|
+| `epaint_default_fonts::EGUI_ICONS`, `epaint_default_fonts::EMOJI_ICON` (dependency font inputs) | John Slegers | [egui 6d518fc7](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts), [emoji-icon-font](https://github.com/jslegers/emoji-icon-font) | MIT (Copyright (c) 2014 John Slegers; full upstream text in `NOTICE`) | egui-icons.ttf is the five-glyph subset, included by default_fonts independently of monochrome_emoji_fonts; emoji-icon-font.ttf is the full monochrome fallback. Dependency assets unmodified here; no font file copied into this repository. |
+| `epaint_default_fonts::UBUNTU_LIGHT` (dependency font input) | Canonical Ltd. | [egui 6d518fc7](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts) | Ubuntu Font Licence 1.0 (Copyright 2011 Canonical Ltd.; full upstream text in `NOTICE`) | Ubuntu-Light.ttf is egui's default proportional fallback, included by `default_fonts`; `system_fonts` is not enabled. Dependency asset unmodified here; no font file copied into this repository. |
+| `epaint_default_fonts::NOTO_EMOJI_REGULAR` (dependency font input) | The Noto Project Authors (Google) | [egui 6d518fc7](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts), [Noto Emoji](https://fonts.google.com/noto/specimen/Noto+Emoji) | OFL-1.1 (Copyright 2013 Google Inc.; full upstream text in `NOTICE`) | NotoEmoji-Regular.ttf is the monochrome emoji fallback, included because the workspace enables `monochrome_emoji_fonts`. Dependency asset unmodified here; no font file copied into this repository. |
+| `epaint_default_fonts::HACK_REGULAR` (dependency font input) | Source Foundry Authors; Bitstream Inc.; DejaVu contributors | [egui 6d518fc7](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts), [Hack](https://github.com/source-foundry/Hack) | MIT (Copyright (c) 2018 Source Foundry Authors) and the Bitstream Vera License (Copyright (c) 2003 Bitstream, Inc.); the DejaVu work is public domain; full upstream notices in `NOTICE` | Hack-Regular.ttf is egui's default monospace fallback, included by `default_fonts`. Dependency asset unmodified here; no font file copied into this repository. |

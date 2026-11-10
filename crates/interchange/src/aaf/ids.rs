@@ -37,6 +37,7 @@ pub(crate) mod cls {
     pub const FILLER: Auid = class(0x09);
     pub const OPERATION_GROUP: Auid = class(0x0A);
     pub const NESTED_SCOPE: Auid = class(0x0B);
+    pub const SCOPE_REFERENCE: Auid = class(0x0D);
     pub const SELECTOR: Auid = class(0x0E);
     pub const SEQUENCE: Auid = class(0x0F);
     pub const SOURCE_CLIP: Auid = class(0x11);
@@ -81,6 +82,10 @@ pub(crate) mod pid {
     // Root
     pub const ROOT_META_DICTIONARY: u16 = 0x0001;
     pub const ROOT_HEADER: u16 = 0x0002;
+    // MetaDictionary and MetaDefinition
+    pub const META_CLASS_DEFINITIONS: u16 = 0x0003;
+    pub const META_TYPE_DEFINITIONS: u16 = 0x0004;
+    pub const META_IDENTIFICATION: u16 = 0x0005;
     // Header
     pub const BYTE_ORDER: u16 = 0x3B01;
     pub const LAST_MODIFIED: u16 = 0x3B02;
@@ -237,9 +242,13 @@ pub(crate) mod def {
     /// Type ids of indirect values (SMPTE RP 210 type labels).
     pub const TYPE_RATIONAL: Auid = super::ul([0x06, 0x0E, 0x2B, 0x34, 0x01, 0x04, 0x01, 0x01, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]);
     pub const TYPE_STRING: Auid = super::ul([0x06, 0x0E, 0x2B, 0x34, 0x01, 0x04, 0x01, 0x01, 0x01, 0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00]);
-    /// Edit Protocol operational pattern and mob usage codes.
+    /// Edit Protocol operational pattern (`AAFEditProtocol`) and mob usage codes (`Usage_TopLevel`),
+    /// as in the SMPTE Labels register.
     pub const OP_EDIT_PROTOCOL: Auid = super::ul([0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x05, 0x0D, 0x01, 0x12, 0x01, 0x01, 0x00, 0x00, 0x00]);
-    pub const USAGE_TOP_LEVEL: Auid = super::ul([0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x05, 0x0D, 0x01, 0x12, 0x01, 0x02, 0x03, 0x00, 0x00]);
+    pub const USAGE_TOP_LEVEL: Auid = super::ul([0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x02, 0x01, 0x01, 0x07, 0x00]);
+    /// The label FilmCraft 0.16 and earlier wrote as the top-level usage code (in no register).
+    /// Import reads it as top-level too.
+    pub const USAGE_TOP_LEVEL_OLD: Auid = super::ul([0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x05, 0x0D, 0x01, 0x12, 0x01, 0x02, 0x03, 0x00, 0x00]);
 }
 
 /// Weak reference target paths (pids from the root object).
