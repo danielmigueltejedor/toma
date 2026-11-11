@@ -61,6 +61,8 @@ modules:
       # The headless CLI and its stdio MCP server, as in the release bundle (#346).
       - install -Dm755 target/release/filmcraft-cli /app/bin/filmcraft-cli
       - install -Dm644 packaging/linux/ai.storyteller.filmcraft.desktop /app/share/applications/ai.storyteller.filmcraft.desktop
+      # Flatpak only exports icons named after the app ID, so the sandbox keeps the Craft icon name.
+      - sed -i "s/^Icon=.*/Icon=ai.storyteller.filmcraft/" /app/share/applications/ai.storyteller.filmcraft.desktop
       - install -Dm644 packaging/linux/ai.storyteller.filmcraft.mime.xml /app/share/mime/packages/ai.storyteller.filmcraft.xml
       - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
       - >-

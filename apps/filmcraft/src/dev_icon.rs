@@ -73,8 +73,9 @@ fn ensure() -> Result<(), DevIconError> {
         break; // a dev entry from another checkout: fall through and rewrite it
     }
     for size in ICON_SIZES {
-        let rel = std::path::Path::new("hicolor").join(format!("{size}x{size}")).join("apps").join(format!("{}.png", crate::APP_ID));
-        let dest = user_dir.join("icons").join(&rel);
+        let apps = std::path::Path::new("hicolor").join(format!("{size}x{size}")).join("apps");
+        let rel = apps.join(format!("{}.png", crate::APP_ID));
+        let dest = user_dir.join("icons").join(apps.join(format!("{ICON_NAME}.png")));
         if !dest.is_file()
             && let Some(parent) = dest.parent()
         {
@@ -98,6 +99,10 @@ fn ensure() -> Result<(), DevIconError> {
 /// The hicolor icon sizes installed for the taskbar (a subset large enough for panel and topbar;
 /// the shell picks the nearest size, so 256 and 512 cover both).
 const ICON_SIZES: [u16; 2] = [256, 512];
+
+/// The icon's theme name in `Icon=`: the Nodalia one, so an icon theme can tell Toma from the
+/// Craft app that shares its ID. Packaging installs the hicolor PNGs under this name too.
+const ICON_NAME: &str = "dev.danielmiguelt.Toma";
 
 /// The app icons in the source tree this binary was built from (a path, not embedded bytes:
 /// the entry is a dev-checkout convenience and release binaries must not carry the PNGs).
@@ -210,7 +215,7 @@ fn desktop_file_content(app_id: &str, name: &str, exe: &str) -> String {
     out.push_str("GenericName=Video Editor\n");
     out.push_str("Comment=Edit video, color and sound\n");
     out.push_str(&format!("Exec=\"{}\" %F\n", escape_exec_argument(exe)));
-    out.push_str(&format!("Icon={app_id}\n"));
+    out.push_str(&format!("Icon={ICON_NAME}\n"));
     out.push_str("Terminal=false\n");
     out.push_str("StartupNotify=true\n");
     out.push_str(&format!("StartupWMClass={app_id}\n"));
