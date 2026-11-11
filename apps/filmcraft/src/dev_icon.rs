@@ -43,7 +43,6 @@ pub fn ensure_dev_desktop_entry() {
 
 /// Install missing files; `Ok` whether anything was written or an entry already existed.
 fn ensure() -> Result<(), DevIconError> {
-    let file_name = format!("{}.desktop", crate::APP_ID);
     let user_dir = user_data_dir()?;
     let exe = std::env::current_exe().map_err(DevIconError::Io)?;
     // Not `to_string_lossy`: a substituted U+FFFD would install an `Exec` that can never start
@@ -56,21 +55,30 @@ fn ensure() -> Result<(), DevIconError> {
         // not valid in the string layer.
         return Err(DevIconError::BadExecPath);
     }
-    for dir in search_dirs(&user_dir) {
+    install(&user_dir, &search_dirs(&user_dir), exe, std::path::Path::new(ICON_DIR))
+}
+
+/// [`ensure`] once the environment is read: the entry for `exe` in `user_dir`, its icons copied
+/// from `icon_dir`, unless one of `dirs` already holds an entry that needs nothing.
+fn install(user_dir: &std::path::Path, dirs: &[std::path::PathBuf], exe: &str, icon_dir: &std::path::Path) -> Result<(), DevIconError> {
+    let file_name = format!("{}.desktop", crate::APP_ID);
+    let mut stale = false;
+    for dir in dirs {
         let candidate = dir.join("applications").join(&file_name);
         if !candidate.is_file() {
             continue;
         }
         // A packaged entry (any system dir) already gives the shell its icon; only our own
         // user-level copy is kept fresh.
-        if dir != user_dir {
+        if dir.as_path() != user_dir {
             return Ok(());
         }
         let body = std::fs::read_to_string(&candidate).map_err(DevIconError::Io)?;
         if desktop_file_is_current(&body, exe) {
             return Ok(());
         }
-        break; // another checkout's entry, or one from before the icon name: rewrite it
+        stale = true; // another checkout's entry, or one from before the icon name: rewrite it
+        break;
     }
     for size in ICON_SIZES {
         let apps = std::path::Path::new("hicolor").join(format!("{size}x{size}")).join("apps");
@@ -80,7 +88,7 @@ fn ensure() -> Result<(), DevIconError> {
             && let Some(parent) = dest.parent()
         {
             // The checkout this binary was built from; a missing icon only costs the icon.
-            let src = std::path::Path::new(ICON_DIR).join(&rel);
+            let src = icon_dir.join(&rel);
             if !src.is_file() {
                 log::warn!("dev desktop entry: icon {} not found; skipping it", src.display());
                 continue;
@@ -89,11 +97,22 @@ fn ensure() -> Result<(), DevIconError> {
             std::fs::copy(&src, &dest).map_err(DevIconError::Io)?;
         }
     }
+    if stale && !has_icon(user_dir) {
+        // Renaming `Icon=` with no icon under the new name would trade a working icon for none;
+        // keep the old entry, and a later run (with the icons back) tries again.
+        log::warn!("dev desktop entry: no {ICON_NAME} icon to point at; keeping the existing entry");
+        return Ok(());
+    }
     let applications = user_dir.join("applications");
     std::fs::create_dir_all(&applications).map_err(DevIconError::Io)?;
     let body = desktop_file_content(crate::APP_ID, "FilmCraft", exe);
     std::fs::write(applications.join(&file_name), body).map_err(DevIconError::Io)?;
     Ok(())
+}
+
+/// Whether any size of the icon is installed under [`ICON_NAME`] in `user_dir`.
+fn has_icon(user_dir: &std::path::Path) -> bool {
+    ICON_SIZES.iter().any(|size| user_dir.join("icons/hicolor").join(format!("{size}x{size}/apps/{ICON_NAME}.png")).is_file())
 }
 
 /// The hicolor icon sizes installed for the taskbar (a subset large enough for panel and topbar;
@@ -151,8 +170,14 @@ fn desktop_file_exec_is_ours(body: &str, exe: &str) -> bool {
 
 /// Ours and naming the current icon: an entry written before `ICON_NAME` existed still says
 /// `Icon=<app id>`, which a theme cannot tell from the Craft app.
+/// Only the `[Desktop Entry]` group's `Icon=` counts, not one in a `[Desktop Action …]` group.
 fn desktop_file_is_current(body: &str, exe: &str) -> bool {
-    desktop_file_exec_is_ours(body, exe) && body.lines().any(|l| l.strip_prefix("Icon=") == Some(ICON_NAME))
+    desktop_file_exec_is_ours(body, exe) && main_group(body).any(|l| l.strip_prefix("Icon=") == Some(ICON_NAME))
+}
+
+/// The lines of the `[Desktop Entry]` group: from its header to the next group header.
+fn main_group(body: &str) -> impl Iterator<Item = &str> {
+    body.lines().skip_while(|l| l.trim_end() != "[Desktop Entry]").skip(1).take_while(|l| !l.starts_with('['))
 }
 
 /// The first `Exec=` argument (the executable), unescaped through both Desktop Entry layers:
@@ -335,6 +360,49 @@ mod tests {
         assert!(desktop_file_is_current(&body, "/a/filmcraft"));
         let old = body.replace(&format!("Icon={ICON_NAME}"), "Icon=ai.storyteller.filmcraft");
         assert!(!desktop_file_is_current(&old, "/a/filmcraft"));
+        // A desktop action naming the new icon does not make the main entry current.
+        let action = format!("{old}\n[Desktop Action new]\nName=New\nIcon={ICON_NAME}\n");
+        assert!(!desktop_file_is_current(&action, "/a/filmcraft"));
+    }
+
+    /// A fresh scratch dir under the system temp dir, removed first so a rerun starts clean.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("filmcraft-dev-icon-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_old_entry(user: &std::path::Path, exe: &str) -> std::path::PathBuf {
+        let path = user.join("applications").join(format!("{}.desktop", crate::APP_ID));
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let body = desktop_file_content(crate::APP_ID, "FilmCraft", exe).replace(&format!("Icon={ICON_NAME}"), &format!("Icon={}", crate::APP_ID));
+        std::fs::write(&path, body).unwrap();
+        path
+    }
+
+    /// With the checkout's icons at hand, an entry still naming the app ID is rewritten and the
+    /// icons are installed under the new name.
+    #[test]
+    fn install_rewrites_an_old_entry_once_the_icons_are_in() {
+        let user = scratch("rewrite");
+        let entry = write_old_entry(&user, "/a/filmcraft");
+        install(&user, std::slice::from_ref(&user), "/a/filmcraft", std::path::Path::new(ICON_DIR)).unwrap();
+        assert!(desktop_file_is_current(&std::fs::read_to_string(&entry).unwrap(), "/a/filmcraft"));
+        assert!(has_icon(&user));
+        let _ = std::fs::remove_dir_all(&user);
+    }
+
+    /// Without the icons, the old entry is kept rather than pointed at an icon that is not there.
+    #[test]
+    fn install_keeps_an_old_entry_when_the_icons_are_missing() {
+        let user = scratch("missing");
+        let entry = write_old_entry(&user, "/a/filmcraft");
+        let before = std::fs::read_to_string(&entry).unwrap();
+        install(&user, std::slice::from_ref(&user), "/a/filmcraft", &user.join("no-icons")).unwrap();
+        assert_eq!(std::fs::read_to_string(&entry).unwrap(), before);
+        assert!(!has_icon(&user));
+        let _ = std::fs::remove_dir_all(&user);
     }
 
     /// The string layer is undone before the argument is split: `\s` becomes a space, which
