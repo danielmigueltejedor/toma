@@ -152,8 +152,7 @@ fn desktop_file_exec_is_ours(body: &str, exe: &str) -> bool {
 /// Ours and naming the current icon: an entry written before `ICON_NAME` existed still says
 /// `Icon=<app id>`, which a theme cannot tell from the Craft app.
 fn desktop_file_is_current(body: &str, exe: &str) -> bool {
-    desktop_file_exec_is_ours(body, exe)
-        && body.lines().any(|l| l.strip_prefix("Icon=") == Some(ICON_NAME))
+    desktop_file_exec_is_ours(body, exe) && body.lines().any(|l| l.strip_prefix("Icon=") == Some(ICON_NAME))
 }
 
 /// The first `Exec=` argument (the executable), unescaped through both Desktop Entry layers:
