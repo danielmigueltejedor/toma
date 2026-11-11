@@ -29,13 +29,14 @@ render "$SVG" 1024 "$DIR/filmcraft-1024.png"
 # Runtime window/Dock icon on macOS (apps/filmcraft/src/main.rs embeds it).
 render "$MAC" 512 "$DIR/filmcraft-macos-512.png"
 
-# Linux hicolor theme. Windows and Linux use the full-bleed tile.
+# Linux hicolor theme: the scalable icon sits on the Nodalix/Colloid app grid (224/256 tile,
+# 16 px margin, 51.5 px radius, soft shadow). It is made by tools/nodalia-app-icon.py in
+# nodalix-icon-theme and committed; every hicolor size is rendered from it.
+LINUX="$DIR/hicolor/scalable/apps/$APP_ID.svg"
 for s in 16 24 32 48 64 128 256 512; do
   mkdir -p "$DIR/hicolor/${s}x${s}/apps"
-  render "$SVG" "$s" "$DIR/hicolor/${s}x${s}/apps/$APP_ID.png"
+  render "$LINUX" "$s" "$DIR/hicolor/${s}x${s}/apps/$APP_ID.png"
 done
-mkdir -p "$DIR/hicolor/scalable/apps"
-cp "$DIR/filmcraft-small.svg" "$DIR/hicolor/scalable/apps/$APP_ID.svg"
 
 # Web app favicon and loading image.
 render "$SVG" 128 "$ROOT/apps/filmcraft-web/web/favicon.png"
