@@ -16,8 +16,10 @@ Licence: see [LICENSE.txt](LICENSE.txt).
 app grid, like the Colloid icons around it: a 224 px tile inside a 256 px canvas (16 px margin),
 a 51.5 px corner radius and a soft shadow. The scalable SVG is made by `tools/nodalia-app-icon.py`
 in [nodalix-icon-theme](https://github.com/danielmigueltejedor/nodalix-icon-theme) and
-`packaging/icons.sh` renders the PNG sizes from it. macOS, Windows and the 1024 px render keep the
-full-bleed tile.
+`packaging/icons.sh` renders the PNG sizes from it. macOS icons use Apple's
+own grid, with a transparent margin, and the Windows `.ico` and the 1024 px render keep the
+full-bleed tile. The window and taskbar icon on Windows is the 256 px
+hicolor PNG, so it has the Linux margin and shadow.
 
 ## Files
 
@@ -40,8 +42,9 @@ The web app's `apps/filmcraft-web/web/favicon.png` (128 px) comes from the same 
 - **Windows:** `build.rs` embeds `filmcraft.ico` as the exe's resource icon (Explorer, Start menu,
   pinned taskbar), and the runtime icon covers the window, taskbar and Alt-Tab.
 - **Linux:** the runtime icon plus `with_app_id("ai.storyteller.filmcraft")`, which Wayland matches to
-  the `.desktop` file. Install the `hicolor/` tree under `/usr/share/icons/hicolor/` and the desktop
-  file under `/usr/share/applications/`.
+  the `.desktop` file. Install the `hicolor/` tree under `/usr/share/icons/hicolor/`, with a copy of each
+  `ai.storyteller.filmcraft.*` icon named `dev.danielmiguelt.Toma.*` (the `.desktop` file's `Icon=`), and
+  the desktop file under `/usr/share/applications/`.
 
 ## Regenerate
 

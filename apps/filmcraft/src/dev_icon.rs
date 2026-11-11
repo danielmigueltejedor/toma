@@ -67,10 +67,10 @@ fn ensure() -> Result<(), DevIconError> {
             return Ok(());
         }
         let body = std::fs::read_to_string(&candidate).map_err(DevIconError::Io)?;
-        if desktop_file_exec_is_ours(&body, exe) {
+        if desktop_file_is_current(&body, exe) {
             return Ok(());
         }
-        break; // a dev entry from another checkout: fall through and rewrite it
+        break; // another checkout's entry, or one from before the icon name: rewrite it
     }
     for size in ICON_SIZES {
         let apps = std::path::Path::new("hicolor").join(format!("{size}x{size}")).join("apps");
@@ -147,6 +147,13 @@ fn search_dirs(user: &std::path::Path) -> Vec<std::path::PathBuf> {
 /// packaged `Exec=filmcraft` never matches a source-tree path).
 fn desktop_file_exec_is_ours(body: &str, exe: &str) -> bool {
     exec_line(body).is_some_and(|arg| arg == exe)
+}
+
+/// Ours and naming the current icon: an entry written before `ICON_NAME` existed still says
+/// `Icon=<app id>`, which a theme cannot tell from the Craft app.
+fn desktop_file_is_current(body: &str, exe: &str) -> bool {
+    desktop_file_exec_is_ours(body, exe)
+        && body.lines().any(|l| l.strip_prefix("Icon=") == Some(ICON_NAME))
 }
 
 /// The first `Exec=` argument (the executable), unescaped through both Desktop Entry layers:
@@ -321,6 +328,14 @@ mod tests {
         assert!(!desktop_file_exec_is_ours("Exec=filmcraft %F\n", "/a/filmcraft"));
         assert!(!desktop_file_exec_is_ours("Name=filmcraft\n", "/a/filmcraft"));
         assert!(!desktop_file_exec_is_ours("Exec=\"dangling\n", "/a/filmcraft"));
+    }
+
+    #[test]
+    fn an_entry_with_the_old_icon_name_is_rewritten() {
+        let body = desktop_file_content("ai.storyteller.filmcraft", "FilmCraft", "/a/filmcraft");
+        assert!(desktop_file_is_current(&body, "/a/filmcraft"));
+        let old = body.replace(&format!("Icon={ICON_NAME}"), "Icon=ai.storyteller.filmcraft");
+        assert!(!desktop_file_is_current(&old, "/a/filmcraft"));
     }
 
     /// The string layer is undone before the argument is split: `\s` becomes a space, which
