@@ -241,11 +241,6 @@ fn unescape_string_value(value: &str) -> String {
 /// The `.desktop` body: same fields as `packaging/linux/ai.storyteller.filmcraft.desktop`, with
 /// `Exec` pointing at this exact binary (a dev build isn't on `$PATH`, so `TryExec` is left out)
 /// and the icon by theme name.
-fn desktop_file_content(app_id: &str, name: &str, exe: &str) -> String {
-    desktop_file_with_icon(app_id, name, exe, ICON_NAME)
-}
-
-/// [`desktop_file_content`] naming `icon` in `Icon=`.
 fn desktop_file_with_icon(app_id: &str, name: &str, exe: &str, icon: &str) -> String {
     let mut out = String::new();
     out.push_str("[Desktop Entry]\n");
@@ -302,6 +297,10 @@ impl std::fmt::Display for DevIconError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn desktop_file_content(app_id: &str, name: &str, exe: &str) -> String {
+        desktop_file_with_icon(app_id, name, exe, ICON_NAME)
+    }
 
     /// The entry mirrors the packaged one, derived from the real file so the two cannot drift:
     /// minus `TryExec` (a dev build isn't on `$PATH`), plus the quoted dev `Exec` path.
