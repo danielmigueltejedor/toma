@@ -97,15 +97,18 @@ fn install(user_dir: &std::path::Path, dirs: &[std::path::PathBuf], exe: &str, i
             std::fs::copy(&src, &dest).map_err(DevIconError::Io)?;
         }
     }
-    if stale && !has_icon(user_dir) {
-        // Renaming `Icon=` with no icon under the new name would trade a working icon for none;
-        // keep the old entry, and a later run (with the icons back) tries again.
-        log::warn!("dev desktop entry: no {ICON_NAME} icon to point at; keeping the existing entry");
-        return Ok(());
-    }
+    // Renaming `Icon=` with no icon under the new name would trade a working icon for none, so
+    // the entry keeps the app ID's icon (still refreshing `Exec`); it is not current, so a later
+    // run with the icons back renames it.
+    let icon = if stale && !has_icon(user_dir) {
+        log::warn!("dev desktop entry: no {ICON_NAME} icon installed; keeping the app ID's icon");
+        crate::APP_ID
+    } else {
+        ICON_NAME
+    };
     let applications = user_dir.join("applications");
     std::fs::create_dir_all(&applications).map_err(DevIconError::Io)?;
-    let body = desktop_file_content(crate::APP_ID, "FilmCraft", exe);
+    let body = desktop_file_with_icon(crate::APP_ID, "FilmCraft", exe, icon);
     std::fs::write(applications.join(&file_name), body).map_err(DevIconError::Io)?;
     Ok(())
 }
@@ -239,6 +242,11 @@ fn unescape_string_value(value: &str) -> String {
 /// `Exec` pointing at this exact binary (a dev build isn't on `$PATH`, so `TryExec` is left out)
 /// and the icon by theme name.
 fn desktop_file_content(app_id: &str, name: &str, exe: &str) -> String {
+    desktop_file_with_icon(app_id, name, exe, ICON_NAME)
+}
+
+/// [`desktop_file_content`] naming `icon` in `Icon=`.
+fn desktop_file_with_icon(app_id: &str, name: &str, exe: &str, icon: &str) -> String {
     let mut out = String::new();
     out.push_str("[Desktop Entry]\n");
     out.push_str("Type=Application\n");
@@ -246,7 +254,7 @@ fn desktop_file_content(app_id: &str, name: &str, exe: &str) -> String {
     out.push_str("GenericName=Video Editor\n");
     out.push_str("Comment=Edit video, color and sound\n");
     out.push_str(&format!("Exec=\"{}\" %F\n", escape_exec_argument(exe)));
-    out.push_str(&format!("Icon={ICON_NAME}\n"));
+    out.push_str(&format!("Icon={icon}\n"));
     out.push_str("Terminal=false\n");
     out.push_str("StartupNotify=true\n");
     out.push_str(&format!("StartupWMClass={app_id}\n"));
@@ -393,14 +401,17 @@ mod tests {
         let _ = std::fs::remove_dir_all(&user);
     }
 
-    /// Without the icons, the old entry is kept rather than pointed at an icon that is not there.
+    /// Without the icons, the entry keeps the app ID's icon rather than naming one that is not
+    /// there, but still follows the binary that moved.
     #[test]
-    fn install_keeps_an_old_entry_when_the_icons_are_missing() {
+    fn install_keeps_the_old_icon_when_the_icons_are_missing() {
         let user = scratch("missing");
-        let entry = write_old_entry(&user, "/a/filmcraft");
-        let before = std::fs::read_to_string(&entry).unwrap();
+        let entry = write_old_entry(&user, "/old/filmcraft");
         install(&user, std::slice::from_ref(&user), "/a/filmcraft", &user.join("no-icons")).unwrap();
-        assert_eq!(std::fs::read_to_string(&entry).unwrap(), before);
+        let body = std::fs::read_to_string(&entry).unwrap();
+        assert!(desktop_file_exec_is_ours(&body, "/a/filmcraft"));
+        assert!(body.lines().any(|l| l == format!("Icon={}", crate::APP_ID)));
+        assert!(!desktop_file_is_current(&body, "/a/filmcraft"));
         assert!(!has_icon(&user));
         let _ = std::fs::remove_dir_all(&user);
     }
