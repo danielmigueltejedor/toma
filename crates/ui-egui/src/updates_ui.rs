@@ -1,13 +1,14 @@
-//! Software updates, background check at startup, and startup prompt modal.
+//! Software updates: Help ▸ Check for Updates, the check at start, and their windows.
+//!
+//! The flow and the windows are `nodalia-update`'s, shared with the other Nodalia apps; this file
+//! is what is this app's own: when an update may close it.
 
 use serde_json::Value;
 
 use crate::FilmcraftApp;
 
 #[cfg(not(target_arch = "wasm32"))]
-use craft_update::updater::{Action, Status, Updater};
-#[cfg(not(target_arch = "wasm32"))]
-use craft_update::{CheckResultDialog, CheckResultResponse};
+use nodalia_update::egui::{Action, Updater};
 
 pub(crate) struct Runtime {
     #[cfg(not(target_arch = "wasm32"))]
@@ -20,6 +21,8 @@ pub(crate) struct Runtime {
     /// The context of the last frame, to wake the UI when a check is queued from a menu callback.
     #[cfg(not(target_arch = "wasm32"))]
     repaint: Option<egui::Context>,
+    /// The web build has no updater; its window only says so.
+    #[cfg(target_arch = "wasm32")]
     pub(crate) manual_window_open: bool,
 }
 
@@ -27,20 +30,21 @@ impl Default for Runtime {
     fn default() -> Self {
         Self {
             #[cfg(not(target_arch = "wasm32"))]
-            updater: Updater::new(&crate::UPDATE_APP, env!("CARGO_PKG_VERSION")),
+            updater: Updater::new(crate::UPDATE_APP).with_accent([0x8b, 0x5c, 0xf6]),
             #[cfg(not(target_arch = "wasm32"))]
             startup_check: false,
             #[cfg(not(target_arch = "wasm32"))]
             check_requested: false,
             #[cfg(not(target_arch = "wasm32"))]
             repaint: None,
+            #[cfg(target_arch = "wasm32")]
             manual_window_open: false,
         }
     }
 }
 
 impl FilmcraftApp {
-    /// Whether the app asks for a newer release when it starts (off until the desktop app turns it on).
+    /// Whether the app looks for a newer release when it starts (off until the desktop app turns it on).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn set_startup_update_check(&mut self, on: bool) {
         self.updates_rt.startup_check = on;
@@ -51,7 +55,6 @@ pub(crate) fn check(app: &mut FilmcraftApp) -> Result<Value, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         app.updates_rt.check_requested = true;
-        app.updates_rt.manual_window_open = true;
         if let Some(ctx) = &app.updates_rt.repaint {
             ctx.request_repaint();
         }
@@ -74,40 +77,46 @@ pub(crate) fn tick(app: &mut FilmcraftApp, ctx: &egui::Context) {
         } else if rt.startup_check {
             rt.updater.check_at_start(ctx);
         }
-        rt.updater.tick(ctx);
+        let action = rt.updater.poll();
+        act(app, ctx, action);
     }
     #[cfg(target_arch = "wasm32")]
     let _ = (app, ctx);
 }
 
+/// Whether an update window is open: they are modal.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+fn blocks_input(app: &FilmcraftApp) -> bool {
+    app.updates_rt.updater.is_open()
+}
+
+/// Carries out what the update windows asked for.
+#[cfg(not(target_arch = "wasm32"))]
+fn act(app: &mut FilmcraftApp, ctx: &egui::Context, action: Action) {
+    match action {
+        Action::OpenUrl(url) => crate::links::open(app, ctx, &url),
+        Action::Exit => {
+            // The new version is starting, or a helper waits for this process to end. Close
+            // normally so the session shuts down and the preferences are saved; the install only
+            // ran once nothing was unsaved. Exit anyway if the app has not ended soon.
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                std::process::exit(0);
+            });
+        }
+        Action::None => {}
+    }
+}
+
 pub(crate) fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        // The restart helper is scheduled before the app closes, so no update starts over unsaved work.
+        // An installation waits until nothing is unsaved.
         let clean = !app.session.is_dirty();
-        match app.updates_rt.updater.show_if(ctx, clean) {
-            Action::OpenUrl(url) => crate::links::open(app, ctx, &url),
-            Action::Close => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
-            Action::None => {}
-        }
-        let rt = &mut app.updates_rt;
-        rt.manual_window_open = result_window_open(rt.manual_window_open, rt.updater.status(), rt.check_requested);
-        if rt.manual_window_open {
-            let dialog = CheckResultDialog::new(&crate::UPDATE_APP, env!("CARGO_PKG_VERSION"));
-            match dialog.show(ctx, rt.updater.status()) {
-                CheckResultResponse::Close => {
-                    rt.manual_window_open = false;
-                    rt.updater.dismiss_status();
-                }
-                CheckResultResponse::CheckAgain => rt.check_requested = true,
-                // The next frame's `show_if` asks the window to close once nothing is unsaved.
-                CheckResultResponse::RestartToUpdate => {
-                    rt.updater.restart_to_update();
-                    ctx.request_repaint();
-                }
-                CheckResultResponse::None => {}
-            }
-        }
+        let language = nodalia_update::Language::from_code(crate::i18n::current().code());
+        let action = app.updates_rt.updater.show(ctx, language, clean);
+        act(app, ctx, action);
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -132,80 +141,55 @@ pub(crate) fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
     }
 }
 
-/// Whether the check result dialog shows this frame. It answers Help ▸ Check for Updates until the
-/// requested check ends, and it shows whenever the status is not idle: at the first start after an
-/// update, the check at start leaves `Updated` or `InstallFailed`. A check that finds a release
-/// leaves the status idle and the startup prompt takes over, so the dialog closes then.
-#[cfg(not(target_arch = "wasm32"))]
-fn result_window_open(open: bool, status: &Status, check_requested: bool) -> bool {
-    !matches!(status, Status::Idle) || (open && check_requested)
-}
-
-/// Starts an update that waits for the app to exit. Called from `on_exit`; dropping the updater
-/// does the same, and later calls do nothing.
-pub(crate) fn exiting(app: &mut FilmcraftApp) {
-    #[cfg(not(target_arch = "wasm32"))]
-    app.updates_rt.updater.start_pending_update();
-    #[cfg(target_arch = "wasm32")]
-    let _ = app;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(target_arch = "wasm32"))]
+    use nodalia_update::egui::Status;
 
     #[test]
     fn default_runtime_is_idle() {
         let rt = Runtime::default();
+        #[cfg(target_arch = "wasm32")]
         assert!(!rt.manual_window_open);
         #[cfg(not(target_arch = "wasm32"))]
         {
             assert!(!rt.startup_check);
-            assert!(!rt.updater.prompt_open());
+            assert!(!rt.updater.is_open());
             assert_eq!(rt.updater.status(), &Status::Idle);
         }
     }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
-    fn startup_prompt_shows_and_closes() {
-        let mut app = FilmcraftApp::new(filmcraft_engine::Session::default());
-        let ctx = egui::Context::default();
-        let release = craft_update::Release {
-            tag: "v99.0.0".into(),
-            version: craft_update::parse_version("99.0.0"),
-            name: "FilmCraft 99.0.0".into(),
-            html_url: "https://github.com/storytold/filmcraft/releases/tag/v99.0.0".into(),
-            ..Default::default()
-        };
-        app.updates_rt.updater.offer(release);
-
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            show(&mut app, ui.ctx());
-        });
-        output.textures_delta.clear();
-        assert!(app.updates_rt.updater.prompt_open());
+    fn the_releases_are_this_apps_own() {
+        assert_eq!(crate::UPDATE_APP.repo, "getnodalia/toma");
+        assert_eq!(crate::UPDATE_APP.version, env!("CARGO_PKG_VERSION"));
     }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
-    fn result_window_shows_every_status_but_idle() {
-        let shown = [
-            Status::Checking,
-            Status::UpToDate,
-            Status::Failed("offline".into()),
-            Status::Installing,
-            Status::Ready,
-            Status::Managed,
-            Status::Updated("1.2.3".into()),
-            Status::InstallFailed("access denied".into()),
-        ];
-        for status in &shown {
-            assert!(result_window_open(false, status, false), "{status:?} opens the dialog without a requested check");
-        }
-        assert!(!result_window_open(false, &Status::Idle, false));
-        assert!(!result_window_open(true, &Status::Idle, false), "a check that found a release closes it");
-        assert!(result_window_open(true, &Status::Idle, true), "a queued check keeps it open");
-        assert!(!result_window_open(false, &Status::Idle, true), "a queued check does not open it");
+    fn startup_prompt_shows_and_escape_closes_it() {
+        let mut app = FilmcraftApp::new(filmcraft_engine::Session::default());
+        let ctx = egui::Context::default();
+        app.updates_rt.updater = Updater::new(crate::UPDATE_APP).with_stamp(None);
+        app.updates_rt.updater.offer(nodalia_update::Release {
+            tag: "v99.0.0".into(),
+            version: "99.0.0".into(),
+            notes: String::new(),
+            page: "https://github.com/getnodalia/toma/releases/tag/v99.0.0".into(),
+            asset: None,
+        });
+        let frame = |app: &mut FilmcraftApp, events: Vec<egui::Event>| {
+            let mut output = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+                show(app, ui.ctx());
+            });
+            output.textures_delta.clear();
+        };
+        frame(&mut app, vec![]);
+        assert!(blocks_input(&app));
+        let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        frame(&mut app, vec![escape]);
+        assert!(!blocks_input(&app));
     }
 }
