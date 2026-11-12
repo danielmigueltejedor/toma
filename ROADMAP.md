@@ -1,4 +1,4 @@
-# FilmCraft Roadmap
+# Toma Roadmap
 
 - M3: Markers and clips share the existing sixteen clip presets plus a project-local custom hex palette. A reusable wheel/hex editor defines colors separately from marker editing; timeline markers expose Edit Marker with Name, Author and Notes. Marker/clip colors, palette edits and authors persist with undo and project saves. AVB marker import remains separate.
 
@@ -21,7 +21,7 @@ Progress toward parity with Adobe Premiere Pro. This page is the summary; the de
 | | Value | How |
 |---|---|---|
 | **Feature breadth** | **~86%** | Does each Premiere feature exist? Menus 92% (measured: label diff against Premiere 26.5.2's menu dump), effects / transitions / audio effects 100% (measured by tests), other areas estimated |
-| **Ready for real work** | **~56%** (51–61%) | How close FilmCraft is to replacing Premiere for an editor on real projects: depth, correctness, file compatibility, speed, stability, ecosystem. Estimated depth per area, combined by a [written formula](docs/target-app-parity.md#three-readiness-numbers) |
+| **Ready for real work** | **~56%** (51–61%) | How close Toma is to replacing Premiere for an editor on real projects: depth, correctness, file compatibility, speed, stability, ecosystem. Estimated depth per area, combined by a [written formula](docs/target-app-parity.md#three-readiness-numbers) |
 | **Mainstream practitioner** | **~55%** | A typical professional editor's weekly work only, discounted ×0.90 interaction, ×0.92 stability, ×0.88 file exchange with Premiere users ([method](docs/target-app-parity.md#mainstream-practitioner)) |
 | **Essentials user** | **~60%** | Import, cut, title, music, export at default settings, discounted ×0.88 launch / stability, ×0.90 discoverability, ×0.95 opening files people send ([method](docs/target-app-parity.md#essentials-user)) |
 | **To beta** | **~400–700 Opus 5.5 agent-hours** | Estimated, calibrated from this repo's PR history |
@@ -114,7 +114,7 @@ Ranked; detail and "done when" in [docs/roadmap.md](docs/roadmap.md) and [docs/g
 
 ## Progress log
 
-- **2026-10-22:** ProRes 4444 / XQ alpha slices include the final singleton run code required by RDD 36:2022. Six HD fixtures rejected by native macOS decoding now pass; syntax regression tests cover final runs and slice widths ([details](crates/prores/README.md#alpha-bitstream-conformance), EffectCraft #293).
+- **2026-10-22:** ProRes 4444 / XQ alpha slices include the final singleton run code required by RDD 36:2022. Six HD fixtures rejected by native macOS decoding now pass; syntax regression tests cover final runs and slice widths ([details](crates/prores/README.md#alpha-bitstream-conformance), Pulso #293).
 
 - **2026-10-20:** the on/off items of the Sequence and Markers menus (Snap in Timeline, Linked Selection, Selection Follows Playhead, Show Through Edits, Ripple Sequence Markers, Copy Paste Includes Sequence Markers) show their checkmark, so choosing one visibly turns it on or off (#2623)
 - **2026-10-12:** Transform's motion-blur shutter on adjustment layers uses the sequence frame rate instead of 24 fps, so a 360° shutter in a 60 fps sequence spans one frame, not 2.5 (#1088)
@@ -176,7 +176,7 @@ Ranked; detail and "done when" in [docs/roadmap.md](docs/roadmap.md) and [docs/g
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-22 | minor | ProRes alpha: write the final singleton run code; 4444/XQ HD clips that failed native macOS decoding now decode, with syntax regression tests (EffectCraft #293) |
+| 2026-10-22 | minor | ProRes alpha: write the final singleton run code; 4444/XQ HD clips that failed native macOS decoding now decode, with syntax regression tests (Pulso #293) |
 | 2026-10-19 | minor | Language table: Czech (#1156, 100%) |
 | 2026-10-20 | trivial | Progress log: checkmarks on the Sequence and Markers menu toggles (#2623) |
 | 2026-10-13 | minor | Language table: German covers the whole interface (~100%) |

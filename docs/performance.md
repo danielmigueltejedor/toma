@@ -535,7 +535,7 @@ compositor and the decoders, not by the encoder, so a different hardware codec d
 
 ### Quality per bit
 
-30 s with a banner (15–45 s of that timeline), exported by FilmCraft as ProRes 422 HQ (the reference)
+30 s with a banner (15–45 s of that timeline), exported by Toma as ProRes 422 HQ (the reference)
 and by each encoder at several bitrates; ffmpeg's `psnr` and `ssim` of the decoded 4:2:0 pictures against
 the reference. Average PSNR over the three planes, and SSIM (higher is better):
 
