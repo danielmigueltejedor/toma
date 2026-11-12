@@ -1,11 +1,11 @@
-# Releasing FilmCraft
+# Releasing Toma
 
 Every push to the `release` branch runs `.github/workflows/release.yml`. The workflow builds
 installers for macOS, Windows, Linux (AppImage, deb, rpm, tarball, Flatpak) and FreeBSD, plus
 the web build, and creates or updates a **draft**
-GitHub Release named `FilmCraft v<version>`. Nobody sees a draft until a maintainer publishes it.
+GitHub Release named `Toma v<version>`. Nobody sees a draft until a maintainer publishes it.
 
-User-facing names say **FilmCraft**. Files, binaries and ids stay lowercase
+User-facing names say **Toma**. Files, binaries and ids stay lowercase
 (`filmcraft-<version>-<platform>-<arch>.<ext>`, `ai.storyteller.filmcraft`).
 
 ## Cutting a release
@@ -19,10 +19,10 @@ User-facing names say **FilmCraft**. Files, binaries and ids stay lowercase
    ```
 
    Commit the change (`Cargo.toml` + `Cargo.lock`) through the normal review flow, as a
-   `Release: FilmCraft v0.3.0` commit whose message says what changed for users.
+   `Release: Toma v0.3.0` commit whose message says what changed for users.
 2. **Merge `main` into `release`** (or fast-forward it) and push. The workflow starts by itself.
 3. **Wait for the draft.** When every job is done (macOS notarization is the slow part), the
-   Releases page has a draft `FilmCraft v0.3.0`, targeting the pushed commit, with every artifact
+   Releases page has a draft `Toma v0.3.0`, targeting the pushed commit, with every artifact
    and `SHA256SUMS.txt`. The notes are generated from the merged pull requests.
 4. **Check it.** Download an installer or two and read the job summaries. A `::warning::` there
    means a signing secret was missing and that artifact is unsigned.
@@ -68,7 +68,7 @@ deliberately, in every job at once.
 ### macOS
 
 `packaging/macos/package.sh` builds `aarch64-apple-darwin` and `x86_64-apple-darwin` with
-`MACOSX_DEPLOYMENT_TARGET=11.0`, joins them with `lipo` and assembles `FilmCraft.app`:
+`MACOSX_DEPLOYMENT_TARGET=11.0`, joins them with `lipo` and assembles `Toma.app`:
 
 - `Info.plist` is generated from `Info.plist.in` (bundle id `ai.storyteller.filmcraft`, the
   version and the build commit).
@@ -79,7 +79,7 @@ deliberately, in every job at once.
   and checked with `stapler validate`. The app goes on a DMG (`hdiutil makehybrid`), which is
   signed and notarized too. The universal `filmcraft-cli` is signed the same way, zipped, and the zip is notarized.
   Its Finder window (background, icon size and positions) comes from
-  [`packaging/macos/dmg/`](../packaging/macos/dmg/README.md), and its volume is named `FilmCraft`
+  [`packaging/macos/dmg/`](../packaging/macos/dmg/README.md), and its volume is named `Toma`
   without the version, which the window's background needs; the DMG file name keeps the version.
 
 Locally, without certificates, the script signs ad hoc and skips notarization, which is enough to
@@ -91,7 +91,7 @@ check the bundle and the DMG on your own Mac (`packaging/macos/package.sh`).
 nor the portable zip needs the Visual C++ redistributable.
 
 - `filmcraft.wxs` (WiX) is a dual-scope package: per-user by default into
-  `%LOCALAPPDATA%\Programs\ArtCraft\FilmCraft`, per-machine into `Program Files\ArtCraft\FilmCraft` (`Program Files (x86)` for the 32-bit build)
+  `%LOCALAPPDATA%\Programs\ArtCraft\Toma`, per-machine into `Program Files\ArtCraft\Toma` (`Program Files (x86)` for the 32-bit build)
   (see `packaging/windows/INSTALLATION.md`). It has a Start Menu shortcut and
   an App Paths entry (Win+R `filmcraft`). Same-version upgrades are allowed, so release candidates
   replace each other.
@@ -166,7 +166,7 @@ the crate's version exactly, `WASM_BINDGEN` in `xtask/src/main.rs`) and zips the
 ## The draft release
 
 The last job waits for every build, downloads their artifacts, writes `SHA256SUMS.txt` and creates
-the draft `FilmCraft v<version>` with notes generated from the merged pull requests. If the draft
+the draft `Toma v<version>` with notes generated from the merged pull requests. If the draft
 already exists, it replaces its assets and keeps it a draft. If that version is already published,
 the job fails and asks for a version bump (`cargo xtask version set`).
 

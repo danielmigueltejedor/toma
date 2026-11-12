@@ -80,7 +80,7 @@ still apply. `engine.commands` and the menus always show the selection's enablem
 **Focus.** Driving the app never steals the user's keyboard. Started with `--control`, the app opens
 without activating itself. UI requests and screenshots that need a rendered frame bring the window
 forward without making it key (macOS `orderFrontRegardless`), so the user's typing keeps going to
-the app they are in. Only an explicit `ui.focus {}` activates FilmCraft. Injected keys work on
+the app they are in. Only an explicit `ui.focus {}` activates Toma. Injected keys work on
 focused widgets even when the native window is in the background.
 
 `ui.focus {id}` targets an enabled, visible widget registered with a real egui response. It rejects
@@ -234,7 +234,7 @@ four-way handle where two dividers meet, `panel.float.<index>.gutter.<path>` and
 The panels use craft-ui's shared docking with its split-tree settings. Its control commands
 (`window.panel.move`, `.float`, `.dock`, `.activate`, `.close`, `.closeGroup`, `.closeOthers`,
 `.minimize`, `.layout`; see craft-libs `docs/ui-docking.md`) route here too; the three
-commands above are FilmCraft's names for `window.panel.float`, `.dock` and `.close`.
+commands above are Toma's names for `window.panel.float`, `.dock` and `.close`.
 
 `window.dockAction` accepts `{action}` using the shared docking action's JSON form. It
 covers tab moves and ordering, split and floating geometry, activation, and closing.

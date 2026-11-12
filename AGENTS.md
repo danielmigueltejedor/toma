@@ -1,7 +1,7 @@
 <!-- craft-house-rules:start core source=dde09ea31e2e457f5b4653a6e76f7cdf55944bdf sha256=540e6cea75d12d0710c3dca89658328e81e508ecef102446ca5bb95b7c0b92bb -->
 ## House rules
 
-These apply in every Craft repository. A later rule may be stricter, not weaker. The source is `standards/house-rules-core.md` in `storytold/craft-contrib`. Propose changes there, not in a copy.
+These apply in every Nodalia repository. A later rule may be stricter, not weaker. The source is `standards/house-rules-core.md` in `storytold/craft-contrib`. Propose changes there, not in a copy.
 
 1. **A person is accountable.** Whoever runs an agent answers for what it opens and for its review comments.
 2. **Check, then claim.** Before writing code, read the issue comments, search pull requests for `#N` and the keywords, and check recent commits on `main`. Comment on the issue first. Release a claim you will not finish.
@@ -20,14 +20,14 @@ These apply in every Craft repository. A later rule may be stricter, not weaker.
 15. **No agent attribution.** A pull request does not say an agent wrote it. A repository rule may not require that.
 <!-- craft-house-rules:end -->
 <!-- craft-house-rules:start rust source=dde09ea31e2e457f5b4653a6e76f7cdf55944bdf sha256=387e0ccb4b49e567f60951d7d6fff7305054c89f43ad812b9993dc7c38528013 -->
-## Rust Craft repositories
+## Rust Nodalia repositories
 
-These apply to native Craft apps and to shared Rust libraries. Select them by repository type. A repository that merely contains some Rust does not take this block. Rules later in a repository's file may be stricter, but not weaker. The source is `standards/house-rules-rust.md` in [storytold/craft-contrib](https://github.com/storytold/craft-contrib).
+These apply to native Nodalia apps and to shared Rust libraries. Select them by repository type. A repository that merely contains some Rust does not take this block. Rules later in a repository's file may be stricter, but not weaker. The source is `standards/house-rules-rust.md` in [storytold/craft-contrib](https://github.com/storytold/craft-contrib).
 
 1. **Never crash.** Non-test code does not panic and has no `unsafe`, except where the repository file names an exception. Return errors, treat input as hostile, and bound recursion and allocations. New production crate roots copy the `deny` attribute from an existing crate: `clippy::unwrap_used`, `clippy::expect_used`, `clippy::panic`, `clippy::unimplemented`, `clippy::todo`, `clippy::unreachable`. Every crash fix comes with a test that panicked before the fix.
 2. **Clean room.** Learn from observed behaviour and public specifications. Do not copy another product's code, assets, strings or artwork. Check a dependency's licence before adding it.
 3. **Assets and fonts.** Every asset is original or suitably licensed, and is recorded in `ATTRIBUTION.md` in the same change. Font files live in [storytold/craft-fonts](https://github.com/storytold/craft-fonts), not in the app repository.
-4. **Rust only for native Craft apps.** No handwritten JavaScript or TypeScript, and no Tauri, Electron or webview shell, in those apps. Shared tooling follows its documented technical scope and maintainer-approved exceptions. Craft PR Review's existing Tauri and TypeScript UI is one such exception. It does not relax this rule for native apps. Preserve any existing web build.
+4. **Rust only for native Nodalia apps.** No handwritten JavaScript or TypeScript, and no Tauri, Electron or webview shell, in those apps. Shared tooling follows its documented technical scope and maintainer-approved exceptions. Craft PR Review's existing Tauri and TypeScript UI is one such exception. It does not relax this rule for native apps. Preserve any existing web build.
 5. **Time goes through `chrono`.** Do not hand-roll calendar conversion. For dates beyond what `chrono` can represent, follow [standards/time.md](https://github.com/storytold/craft-contrib/blob/main/standards/time.md).
 6. **Contributor credits.** Add or edit only your own person's entry in `contributors/people.toml`, and only after asking them. Never guess a name or hand-edit `contributors.json`.
 
@@ -51,14 +51,14 @@ Dependencies and assets use SPDX identifiers. An expression is allowed when ever
 `LicenseRef-Storyteller-Trademark` is not in this list. It covers Storyteller brand marks only, where a repository already says so.
 <!-- craft-house-rules:end -->
 
-# FilmCraft — rules for agents and contributors
+# Toma — rules for agents and contributors
 
 These rules apply to every human and AI contributor. `CLAUDE.md` holds the working instructions; this
 file holds the rules that must never be broken. When the two disagree, this file wins.
 
 ## 0. Never crash
 
-People trust FilmCraft with hours of work. A malformed file, a bad command or MCP parameter, a corrupt
+People trust Toma with hours of work. A malformed file, a bad command or MCP parameter, a corrupt
 preset or project, an odd keystroke or a full disk must give an error the user (or agent) can act on,
 never a crash and never lost work. **This rule outranks feature work:** don't ship a feature by adding a
 panic path, and fix a crash before building on top of it.
@@ -130,7 +130,7 @@ reproduce an image (for example, point lists traced from someone else's icon).
    ```
    Also add one line for the asset to [`ATTRIBUTION.md`](ATTRIBUTION.md). `cargo xtask assets` (part of
    `cargo xtask ci`) fails if any asset lacks a sidecar or index entry.
-4. **Screenshots** in the repo may show only FilmCraft (or other open projects), with media we generated
+4. **Screenshots** in the repo may show only Toma (or other open projects), with media we generated
    or media that is itself openly licensed. Never commit screenshots of Adobe products.
 5. **Local reference material stays local.** Premiere reference screenshots and notes live only in
    `plan/premiere/` (gitignored). They must never be committed, bundled, embedded, traced or shipped.
@@ -140,13 +140,13 @@ reproduce an image (for example, point lists traced from someone else's icon).
 7. **When in doubt, leave it out** and draw or generate it yourself.
 8. **The one exception: first-party ArtCraft brand marks.** The ArtCraft name and logos in `docs/brand/`
    are trademarks of the ArtCraft Team, not open source, usable only unmodified and only in the context of
-   FilmCraft under `docs/brand/LICENSE-brand.txt`; forks and modified versions must remove them. They still
+   Toma under `docs/brand/LICENSE-brand.txt`; forks and modified versions must remove them. They still
    need a sidecar and an `ATTRIBUTION.md` row (licence `LicenseRef-ArtCraft-Trademark`). No other
    non-open asset is allowed, and this exception never covers third-party marks (Adobe, Discord, GitHub
    and other logos stay out; draw a generic icon instead).
 9. **Fonts live in [storytold/craft-fonts](https://github.com/storytold/craft-fonts), never in this
    repo.** Don't commit new font files (the small Latin UI fonts already in `assets/fonts/` stay). A
-   font FilmCraft needs is added to craft-fonts, which the app reads through the optional build input
+   font Toma needs is added to craft-fonts, which the app reads through the optional build input
    `CRAFT_FONTS_DIR=<absolute path of a craft-fonts checkout>` (`crates/text/build.rs` embeds the fonts in its
    `fonts/manifest.txt` as `filmcraft_text::fonts::CRAFT_FONTS`; unset, it is empty and the app uses its
    bundled and system fonts). Never add craft-fonts to a `Cargo.toml`. Code using `CRAFT_FONTS` must work
@@ -201,14 +201,14 @@ linked partners; explicit move requests with repeated identities are still rejec
 Shared real-file test corpora (Photoshop-authored PSDs, etc.) live in
 [`storytold/photocraft-corpus`](https://github.com/storytold/photocraft-corpus).
 Never commit large binary fixtures to this repo; fetch them pinned by commit and sha256-verified,
-as PhotoCraft does with `cargo xtask corpus`.
+as Lienzo does with `cargo xtask corpus`.
 
 ## See also
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/contributing.md](docs/contributing.md): setup, gates, commits, how to add things
 - [docs/architecture.md](docs/architecture.md): layers, data model, commands, pipeline
 - [docs/testing.md](docs/testing.md): oracle tests, criteria, benchmarks
-- [docs/agents.md](docs/agents.md): driving FilmCraft over MCP / the control channel, and the agent work loop
+- [docs/agents.md](docs/agents.md): driving Toma over MCP / the control channel, and the agent work loop
 - [docs/control-protocol.md](docs/control-protocol.md): control-channel method reference
 - [ATTRIBUTION.md](ATTRIBUTION.md): asset index
 - [ROADMAP.md](ROADMAP.md), [docs/target-app-parity.md](docs/target-app-parity.md), [docs/gaps.md](docs/gaps.md): stage, parity with Premiere Pro and the ranked work list

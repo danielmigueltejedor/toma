@@ -1,4 +1,4 @@
-# Contributing to FilmCraft
+# Contributing to Toma
 
 Thanks for helping. Before you start:
 

@@ -1,10 +1,10 @@
-# Where FilmCraft falls short of Premiere Pro
+# Where Toma falls short of Premiere Pro
 
 > **Last reviewed:** 2026-10-12 · **Last updated:** 2026-11-08 · **Change:** minor (G14 catalog counts refreshed; G13 GIF binary transparency retained) · **Target:** Adobe Premiere Pro 2026 (26.5.2)
 
 > **Naming update (2026-11-08):** First-party feature labels now follow the selected ArtCraft naming scheme in [PR #1880](https://github.com/storytold/filmcraft/pull/1880). Capabilities, estimates and parity scores were not re-measured.
 
-Every known shortfall, one entry each, ranked by what most stops an editor using FilmCraft for real
+Every known shortfall, one entry each, ranked by what most stops an editor using Toma for real
 work. This is the work list: agents should prefer it over adding checklist items. Numbers are in
 [target-app-parity.md](target-app-parity.md); estimates are Opus 5.5 agent-hours, calibrated there.
 When you close or shrink a gap, update its entry, its parity doc and the revision history.
@@ -41,9 +41,9 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
 
 - **Missing:** a fidelity harness. Every effect, transition, Color Grading control, blend mode, keyframe
   interpolation and audio effect counts once it exists; nothing renders the same project in
-  Premiere and FilmCraft and compares frames or samples. Effects described as approximations
+  Premiere and Toma and compares frames or samples. Effects described as approximations
   count the same as exact ones.
-- **Evidence:** catalogue tests check names and folders only. EffectCraft's live After Effects
+- **Evidence:** catalogue tests check names and folders only. Pulso's live After Effects
   comparison (its gaps.md G1) found real bugs in features marked done on its first run.
 - **Impact:** "ready for real work" stays an estimate; colour and effect differences surface only
   when a user notices.
@@ -87,7 +87,7 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
   (Windows) or the integrated GPU (Linux, #2553), then a software adapter (WARP, lavapipe,
   llvmpipe) with CPU compositing, and keeps the mode that works; a start-up error wgpu reports
   moves on in the same process, and a wgpu panic before the app exists saves the next mode and
-  starts FilmCraft again in it, once. A fallback mode shows a notice with Use Default Graphics;
+  starts Toma again in it, once. A fallback mode shows a notice with Use Default Graphics;
   `--graphics default|dx12|low-power|software` picks a mode by hand. An explicit `WGPU_BACKEND`
   stays in charge. On Windows, a GPU that Vulkan lists through two
   installed versions of one driver (GPUs on different driver packages) draws with the newer one
@@ -136,7 +136,7 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
 - **Evidence:** export stopped producing frames with iPhone HEVC clips on Linux (#480); WebM shows
   black (#432); only the first audio track imported (#397, #416, #601; multi-stream support landed
   in #361, reporters not yet confirmed); bitrate target produced 6.1 Mb/s for 40 (#371).
-- **Done when:** corpus fetched pinned and sha256-verified (as PhotoCraft's `cargo xtask corpus`), runs nightly, ≥ 50 files. **40–70 h.**
+- **Done when:** corpus fetched pinned and sha256-verified (as Lienzo's `cargo xtask corpus`), runs nightly, ≥ 50 files. **40–70 h.**
 
 ## G7. No measured parity tool in CI
 
