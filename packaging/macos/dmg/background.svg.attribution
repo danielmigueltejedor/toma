@@ -1,8 +1,8 @@
 asset:        background.svg
-title:        FilmCraft macOS DMG window background
-author:       @XusBadia
+title:        Toma macOS DMG window background
+author:       @danielmigueltejedor
 source:       original work
 license:      MIT OR Apache-2.0
 license-file: LICENSE-MIT, LICENSE-APACHE
-added:        2026-10-08 by @XusBadia
-notes:        Original work for this repository, derived from the FilmCraft app icon (assets/app-icon/filmcraft.svg, referenced via <image>, not copied). Text is outlined Inter / JetBrains Mono glyph paths. Used for the Finder window of the macOS DMG; packaging/macos/dmg/generate.py renders it to background.tiff. See packaging/macos/dmg/README.md.
+added:        2026-11-12 by @danielmigueltejedor
+notes:        Drawn by tools/dmg-background/draw_background.py in getnodalia/nodalia-design: flat shapes, no third-party artwork. Used for the Finder window of the macOS DMG. Text is outlined Sora glyph paths (OFL-1.1).
