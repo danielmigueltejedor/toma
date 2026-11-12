@@ -510,8 +510,6 @@ impl eframe::App for FilmcraftApp {
         // Flush the recovery journal and stop the auto-save worker; a session with nothing unsaved
         // removes its journal, one with unsaved changes keeps it for the next launch.
         self.session.shutdown();
-        // An update waiting for the exit starts its install helper now.
-        crate::updates_ui::exiting(self);
     }
 
     /// Eframe's UI entry: begin this pass's IME reset state, suspend custom controls when no
