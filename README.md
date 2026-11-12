@@ -6,7 +6,7 @@
     </picture>
   </a>
   <br><br>
-  <img src="https://raw.githubusercontent.com/danielmigueltejedor/toma/main/assets/app-icon/hicolor/512x512/apps/ai.storyteller.filmcraft.png" width="160" alt="Toma">
+  <img src="https://raw.githubusercontent.com/danielmigueltejedor/toma/main/assets/app-icon/hicolor/512x512/apps/ai.storyteller.filmcraft.png" width="192" alt="Toma">
   <h1>Toma</h1>
   <p><strong>A video editor for the Nodalia suite, built on the FilmCraft engine.</strong></p>
 
