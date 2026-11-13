@@ -1,57 +1,16 @@
-<!-- craft-house-rules:start core source=dde09ea31e2e457f5b4653a6e76f7cdf55944bdf sha256=540e6cea75d12d0710c3dca89658328e81e508ecef102446ca5bb95b7c0b92bb -->
-## House rules
-
-These apply in every Craft repository. A later rule may be stricter, not weaker. The source is `standards/house-rules-core.md` in `storytold/craft-contrib`. Propose changes there, not in a copy.
-
-1. **A person is accountable.** Whoever runs an agent answers for what it opens and for its review comments.
-2. **Check, then claim.** Before writing code, read the issue comments, search pull requests for `#N` and the keywords, and check recent commits on `main`. Comment on the issue first. Release a claim you will not finish.
-3. **Verify, don't guess.** Open a definition before using it. Confirm the cause in the code, even when someone names a location.
-4. **Keep fixes narrow and tested.** Fix what the issue describes, where the bug is. Add a test that fails without the fix.
-5. **Review the diff before opening a pull request.** Identifiers exist as used, the test fails without the fix, nothing unrelated changed, and the description is true.
-6. **Look for a better pull request.** If another fixes the same thing, close yours when it is better or equal, and say why.
-7. **Report only what ran.** Say what you tested and what you could not run. Without a local build or test, say so and rely on CI before marking ready.
-8. **`main` changes through a pull request.** Do not push to it. Branch protection enforces this. There is no exception.
-9. **Stop and ask only about** licensing outside the allowlist, publishing, releases, a new remote, secrets, spending money, destructive git, and anything else hard to undo. Otherwise keep working. `plan/` is a gitignored notebook, not rules. Without it, do not ask for it and do not stop.
-10. **Keep secrets and personal details out** of the repository, logs and requests.
-11. **CI stays shared.** Workflows call `storytold/craft-common-actions`. Do not change CI in a feature or fix pull request. If CI cannot cover a change, open an issue there.
-12. **Guards say why.** A check that looks removable says what it prevents. Read that before changing it.
-13. **Instructions must be readable by everyone.** No notes about one machine, and no links to files a reader cannot open. `craftrules` is retired. Do not link to it.
-14. **Keep pull requests moving.** Concurrent pull requests are fine; unanswered actionable feedback is not. Respond in 7 days, a reminder at 14, closure eligible at 30, from when an actionable request waits on the author. Suggestions and unconfirmed bot findings do not start the clock. A fix, explanation or agreed plan resets it; unrelated activity does not. Waiting on a reviewer or maintainer pauses it and does not count against the author. A maintainer decides closure; it is never automatic. Reuse search results, do not poll, and stop at a rate limit.
-15. **No agent attribution.** A pull request does not say an agent wrote it. A repository rule may not require that.
-<!-- craft-house-rules:end -->
-<!-- craft-house-rules:start rust source=dde09ea31e2e457f5b4653a6e76f7cdf55944bdf sha256=387e0ccb4b49e567f60951d7d6fff7305054c89f43ad812b9993dc7c38528013 -->
-## Rust Craft repositories
-
-These apply to native Craft apps and to shared Rust libraries. Select them by repository type. A repository that merely contains some Rust does not take this block. Rules later in a repository's file may be stricter, but not weaker. The source is `standards/house-rules-rust.md` in [storytold/craft-contrib](https://github.com/storytold/craft-contrib).
-
-1. **Never crash.** Non-test code does not panic and has no `unsafe`, except where the repository file names an exception. Return errors, treat input as hostile, and bound recursion and allocations. New production crate roots copy the `deny` attribute from an existing crate: `clippy::unwrap_used`, `clippy::expect_used`, `clippy::panic`, `clippy::unimplemented`, `clippy::todo`, `clippy::unreachable`. Every crash fix comes with a test that panicked before the fix.
-2. **Clean room.** Learn from observed behaviour and public specifications. Do not copy another product's code, assets, strings or artwork. Check a dependency's licence before adding it.
-3. **Assets and fonts.** Every asset is original or suitably licensed, and is recorded in `ATTRIBUTION.md` in the same change. Font files live in [storytold/craft-fonts](https://github.com/storytold/craft-fonts), not in the app repository.
-4. **Rust only for native Craft apps.** No handwritten JavaScript or TypeScript, and no Tauri, Electron or webview shell, in those apps. Shared tooling follows its documented technical scope and maintainer-approved exceptions. Craft PR Review's existing Tauri and TypeScript UI is one such exception. It does not relax this rule for native apps. Preserve any existing web build.
-5. **Time goes through `chrono`.** Do not hand-roll calendar conversion. For dates beyond what `chrono` can represent, follow [standards/time.md](https://github.com/storytold/craft-contrib/blob/main/standards/time.md).
-6. **Contributor credits.** Add or edit only your own person's entry in `contributors/people.toml`, and only after asking them. Never guess a name or hand-edit `contributors.json`.
-
-## Licence allowlist
-
-Dependencies and assets use SPDX identifiers. An expression is allowed when every identifier is in this list. A repository may name a shorter list. It may not add an identifier here by editing its own copy of these rules.
-
-- `ISC`
-- `MIT`
-- `BSD-2-Clause`
-- `BSD-3-Clause`
-- `Apache-2.0`
-- `OFL-1.1`
-- `Ubuntu-font-1.0`
-- `Bitstream-Vera`
-- `CC0-1.0`
-- `CC-BY-4.0`
-- `CC-BY-SA-4.0`
-- `LicenseRef-Public-Domain`
-
-`LicenseRef-Storyteller-Trademark` is not in this list. It covers Storyteller brand marks only, where a repository already says so.
-<!-- craft-house-rules:end -->
-
 # Toma — rules for agents and contributors
+
+<!-- Nodalia template: https://github.com/getnodalia/foundation/blob/main/standards/agents.md -->
+
+Engineering rules for every Nodalia repository: [getnodalia/foundation](https://github.com/getnodalia/foundation)
+([engineering](https://github.com/getnodalia/foundation/blob/main/standards/engineering.md),
+[CI](https://github.com/getnodalia/foundation/blob/main/standards/ci.md),
+[security](https://github.com/getnodalia/foundation/blob/main/standards/security.md),
+[dependencies and licences](https://github.com/getnodalia/foundation/blob/main/standards/dependencies.md),
+[release](https://github.com/getnodalia/foundation/blob/main/standards/release.md),
+[NDL](https://github.com/getnodalia/foundation/blob/main/standards/ndl.md)).
+
+## What this is
 
 These rules apply to every human and AI contributor. `CLAUDE.md` holds the working instructions; this
 file holds the rules that must never be broken. When the two disagree, this file wins.
@@ -144,7 +103,7 @@ reproduce an image (for example, point lists traced from someone else's icon).
    need a sidecar and an `ATTRIBUTION.md` row (licence `LicenseRef-ArtCraft-Trademark`). No other
    non-open asset is allowed, and this exception never covers third-party marks (Adobe, Discord, GitHub
    and other logos stay out; draw a generic icon instead).
-9. **Fonts live in [storytold/craft-fonts](https://github.com/storytold/craft-fonts), never in this
+9. **Fonts live in [getnodalia/foundation's `vendor/craft-fonts/main` branch](https://github.com/getnodalia/foundation/tree/vendor/craft-fonts/main), never in this
    repo.** Don't commit new font files (the small Latin UI fonts already in `assets/fonts/` stay). A
    font Toma needs is added to craft-fonts, which the app reads through the optional build input
    `CRAFT_FONTS_DIR=<absolute path of a craft-fonts checkout>` (`crates/text/build.rs` embeds the fonts in its
@@ -196,8 +155,6 @@ linked partners; explicit move requests with repeated identities are still rejec
 - `cargo run -p filmcraft -- --control 9876` opens the desktop app (`docs/control-protocol.md`). For UI work, look at `ui.screenshot`. Generate fixtures with ffmpeg into `target/fixtures/` and do not commit media (`docs/testing.md`).
 - `plan/` is an optional gitignored notebook (`plan/premiere/` may hold local screenshots). Do not ask for it and do not stop when it is absent. Public work lists are [`ROADMAP.md`](ROADMAP.md), [`docs/gaps.md`](docs/gaps.md) and [`docs/agents.md`](docs/agents.md).
 
-
-
 Shared real-file test corpora (Photoshop-authored PSDs, etc.) live in
 [`storytold/photocraft-corpus`](https://github.com/storytold/photocraft-corpus).
 Never commit large binary fixtures to this repo; fetch them pinned by commit and sha256-verified,
@@ -229,9 +186,12 @@ as Lienzo does with `cargo xtask corpus`.
   GitHub profiles). Never hand-edit `contributors.json`.
 
 ## CI workflows
-- Workflows in `.github/workflows/` call the shared workflows in [`storytold/craft-common-actions`](https://github.com/storytold/craft-common-actions) at `@main`, with their inputs and secrets. No other jobs: if no shared workflow does what's needed, it doesn't go here.
-- Don't add or change CI in a feature or fix PR. If the existing workflows can't build or test a change, link an existing craft-common-actions issue or PR, or open a new issue, or a PR only for a small fix that is safe for every app and does not increase CI time.
-- Some workflow files here still run their own jobs. Don't add to them. Moving a job into craft-common-actions is its own task, never part of another PR, and the job stays here until a shared workflow runs it.
+
+- Workflows call [getnodalia/foundation](https://github.com/getnodalia/foundation)'s reusable workflows, pinned by commit. Release and
+  Windows ARM64 still call the inherited ones; `NODALIA_MIGRATION.md` tracks them.
+- Pin every action to a full commit SHA, give each job the least permissions it needs, and use only
+  standard GitHub-hosted runners (Foundation's [CI standard](https://github.com/getnodalia/foundation/blob/main/standards/ci.md)).
+- Keep CI changes in their own pull request unless a change cannot work without them.
 
 ## Repository-specific deterministic quality contract (2026-10-26)
 
@@ -242,3 +202,15 @@ as Lienzo does with `cargo xtask corpus`.
 **Verification commands:** cargo fmt --all -- --check; cargo metadata --locked --no-deps --format-version 1; targeted cargo test.
 
 Only claim checks passed after executing them. Every feature and fix should add or maintain tests for behavior, boundaries and failure cases. Never disable/weaken tests, suppress warnings or reduce coverage thresholds solely to pass CI. `AGENTS.md`, `QUALITY_GATES.md`, tests and workflows are review-sensitive. Require `quality` in branch protection. Disclose native dependencies and pre-existing CI failures. Preserve existing project rules.
+
+## Architecture
+
+The crate map, the layers and the engine/UI seam are in `docs/architecture.md`; `cargo xtask layers` enforces the dependency direction.
+
+## Build and test
+
+`cargo xtask ci` is the gate CI runs (fmt, clippy `-D warnings`, tests, layers, assets, wasm). Run it before every commit; while iterating, test the crates you touched.
+
+## Release
+
+`release.yml` runs on a push to the `release` branch and drafts the release; a maintainer reviews the draft and publishes it. It still calls the inherited release workflow (see `NODALIA_MIGRATION.md`).
