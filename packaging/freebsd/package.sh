@@ -70,7 +70,7 @@ if [[ "$DRY_RUN" = 1 ]]; then
   BIN="$WORK/stub-bin"
   OUT_DIR="$WORK"
   mkdir -p "$BIN"
-  for b in filmcraft filmcraft-cli; do
+  for b in toma filmcraft-cli; do
     printf '#!/bin/sh\necho "%s %s (dry-run stub)"\n' "$b" "$VERSION" >"$BIN/$b"
     chmod 755 "$BIN/$b"
   done
@@ -80,7 +80,10 @@ fi
 # FreeBSD's install(1) has no -D: create the directories first.
 mkdir -p "$STAGE/bin" "$STAGE/share/applications" "$STAGE/share/mime/packages" \
   "$STAGE/share/metainfo" "$STAGE/share/icons" "$STAGE/share/doc/filmcraft"
-install -m 755 "$BIN/filmcraft" "$BIN/filmcraft-cli" "$STAGE/bin/"
+# The desktop binary is built as `toma` (apps/filmcraft/Cargo.toml); the package keeps the
+# `filmcraft` command its desktop entry launches until the packaging is renamed.
+install -m 755 "$BIN/toma" "$STAGE/bin/filmcraft"
+install -m 755 "$BIN/filmcraft-cli" "$STAGE/bin/"
 strip "$STAGE/bin/filmcraft" "$STAGE/bin/filmcraft-cli" 2>/dev/null || true
 # The desktop entry, MIME type, metainfo and icons are the freedesktop files Linux ships.
 install -m 644 "$LINUX/$APP_ID.desktop" "$STAGE/share/applications/$APP_ID.desktop"
