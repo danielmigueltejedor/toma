@@ -7,9 +7,9 @@ inputs, automation boundaries, dependencies or release artifacts are welcome.
 ## Reporting a vulnerability
 
 GitHub private vulnerability reporting is not currently enabled for this repository,
-and no dedicated private security address is documented. Contact the maintainers
-through the [project's existing community channels](https://discord.gg/artcraft)
-with a minimal, non-exploitable description and ask for a private transfer method.
+and no dedicated private security address is documented. Contact the **Nodalia** maintainers through the repository owner channels
+on [getnodalia/toma](https://github.com/getnodalia/toma) with a minimal,
+non-exploitable description and request a private transfer method.
 Do not publish a working exploit, malicious attachment, credential, private project,
 or sensitive crash dump in a public issue or chat. Wait for a private channel before
 sharing those details; if none is established, withhold sensitive material.
