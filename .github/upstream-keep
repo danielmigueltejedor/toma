@@ -12,3 +12,4 @@ NODALIA_MIGRATION.md
 .github/workflows/**
 .github/pull_request_template.md
 .github/CODEOWNERS
+.github/ISSUE_TEMPLATE/**
