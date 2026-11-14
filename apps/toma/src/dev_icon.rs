@@ -62,7 +62,6 @@ fn ensure() -> Result<(), DevIconError> {
 /// from `icon_dir`, unless one of `dirs` already holds an entry that needs nothing.
 fn install(user_dir: &std::path::Path, dirs: &[std::path::PathBuf], exe: &str, icon_dir: &std::path::Path) -> Result<(), DevIconError> {
     let file_name = format!("{}.desktop", crate::APP_ID);
-    let mut stale = false;
     for dir in dirs {
         let candidate = dir.join("applications").join(&file_name);
         if !candidate.is_file() {
@@ -77,8 +76,7 @@ fn install(user_dir: &std::path::Path, dirs: &[std::path::PathBuf], exe: &str, i
         if desktop_file_is_current(&body, exe) {
             return Ok(());
         }
-        stale = true; // another checkout's entry, or one from before the icon name: rewrite it
-        break;
+        break; // another checkout's entry, or one naming another icon: rewrite it
     }
     for size in ICON_SIZES {
         let apps = std::path::Path::new("hicolor").join(format!("{size}x{size}")).join("apps");
@@ -97,33 +95,19 @@ fn install(user_dir: &std::path::Path, dirs: &[std::path::PathBuf], exe: &str, i
             std::fs::copy(&src, &dest).map_err(DevIconError::Io)?;
         }
     }
-    // Renaming `Icon=` with no icon under the new name would trade a working icon for none, so
-    // the entry keeps the app ID's icon (still refreshing `Exec`); it is not current, so a later
-    // run with the icons back renames it.
-    let icon = if stale && !has_icon(user_dir) {
-        log::warn!("dev desktop entry: no {ICON_NAME} icon installed; keeping the app ID's icon");
-        crate::APP_ID
-    } else {
-        ICON_NAME
-    };
     let applications = user_dir.join("applications");
     std::fs::create_dir_all(&applications).map_err(DevIconError::Io)?;
-    let body = desktop_file_with_icon(crate::APP_ID, "Toma", exe, icon);
+    let body = desktop_file_with_icon(crate::APP_ID, "Toma", exe, ICON_NAME);
     std::fs::write(applications.join(&file_name), body).map_err(DevIconError::Io)?;
     Ok(())
-}
-
-/// Whether any size of the icon is installed under [`ICON_NAME`] in `user_dir`.
-fn has_icon(user_dir: &std::path::Path) -> bool {
-    ICON_SIZES.iter().any(|size| user_dir.join("icons/hicolor").join(format!("{size}x{size}/apps/{ICON_NAME}.png")).is_file())
 }
 
 /// The hicolor icon sizes installed for the taskbar (a subset large enough for panel and topbar;
 /// the shell picks the nearest size, so 256 and 512 cover both).
 const ICON_SIZES: [u16; 2] = [256, 512];
 
-/// The icon's theme name in `Icon=`: the Nodalia one, so an icon theme can tell Toma from the
-/// Craft app that shares its ID. Packaging installs the hicolor PNGs under this name too.
+/// The icon's theme name in `Icon=`, the app ID. Packaging installs the hicolor PNGs under this
+/// name too.
 const ICON_NAME: &str = "dev.danielmiguelt.Toma";
 
 /// The app icons in the source tree this binary was built from (a path, not embedded bytes:
@@ -171,8 +155,7 @@ fn desktop_file_exec_is_ours(body: &str, exe: &str) -> bool {
     exec_line(body).is_some_and(|arg| arg == exe)
 }
 
-/// Ours and naming the current icon: an entry written before `ICON_NAME` existed still says
-/// `Icon=<app id>`, which a theme cannot tell from the Craft app.
+/// Ours and naming the current icon (an entry from an older build may name another one).
 /// Only the `[Desktop Entry]` group's `Icon=` counts, not one in a `[Desktop Action …]` group.
 fn desktop_file_is_current(body: &str, exe: &str) -> bool {
     desktop_file_exec_is_ours(body, exe) && main_group(body).any(|l| l.strip_prefix("Icon=") == Some(ICON_NAME))
@@ -362,12 +345,12 @@ mod tests {
     }
 
     #[test]
-    fn an_entry_with_the_old_icon_name_is_rewritten() {
-        let body = desktop_file_content("dev.danielmiguelt.Toma", "Toma", "/a/toma");
+    fn an_entry_naming_another_icon_is_rewritten() {
+        let body = desktop_file_content(crate::APP_ID, "Toma", "/a/toma");
         assert!(desktop_file_is_current(&body, "/a/toma"));
-        let old = body.replace(&format!("Icon={ICON_NAME}"), "Icon=dev.danielmiguelt.Toma");
+        let old = body.replace(&format!("Icon={ICON_NAME}"), "Icon=toma");
         assert!(!desktop_file_is_current(&old, "/a/toma"));
-        // A desktop action naming the new icon does not make the main entry current.
+        // A desktop action naming the icon does not make the main entry current.
         let action = format!("{old}\n[Desktop Action new]\nName=New\nIcon={ICON_NAME}\n");
         assert!(!desktop_file_is_current(&action, "/a/toma"));
     }
@@ -383,35 +366,35 @@ mod tests {
     fn write_old_entry(user: &std::path::Path, exe: &str) -> std::path::PathBuf {
         let path = user.join("applications").join(format!("{}.desktop", crate::APP_ID));
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let body = desktop_file_content(crate::APP_ID, "Toma", exe).replace(&format!("Icon={ICON_NAME}"), &format!("Icon={}", crate::APP_ID));
+        let body = desktop_file_content(crate::APP_ID, "Toma", exe).replace(&format!("Icon={ICON_NAME}"), "Icon=toma");
         std::fs::write(&path, body).unwrap();
         path
     }
 
-    /// With the checkout's icons at hand, an entry still naming the app ID is rewritten and the
-    /// icons are installed under the new name.
+    fn icons_installed(user: &std::path::Path) -> bool {
+        ICON_SIZES.iter().all(|size| user.join("icons/hicolor").join(format!("{size}x{size}/apps/{ICON_NAME}.png")).is_file())
+    }
+
+    /// An entry naming another icon, for another binary, is rewritten, and the checkout's icons
+    /// are installed under the app ID.
     #[test]
-    fn install_rewrites_an_old_entry_once_the_icons_are_in() {
+    fn install_rewrites_an_old_entry_and_installs_the_icons() {
         let user = scratch("rewrite");
-        let entry = write_old_entry(&user, "/a/toma");
+        let entry = write_old_entry(&user, "/old/toma");
         install(&user, std::slice::from_ref(&user), "/a/toma", std::path::Path::new(ICON_DIR)).unwrap();
         assert!(desktop_file_is_current(&std::fs::read_to_string(&entry).unwrap(), "/a/toma"));
-        assert!(has_icon(&user));
+        assert!(icons_installed(&user));
         let _ = std::fs::remove_dir_all(&user);
     }
 
-    /// Without the icons, the entry keeps the app ID's icon rather than naming one that is not
-    /// there, but still follows the binary that moved.
+    /// Without the checkout's icons the entry is still rewritten; only the icon files are missing.
     #[test]
-    fn install_keeps_the_old_icon_when_the_icons_are_missing() {
+    fn install_without_the_icons_still_rewrites_the_entry() {
         let user = scratch("missing");
         let entry = write_old_entry(&user, "/old/toma");
         install(&user, std::slice::from_ref(&user), "/a/toma", &user.join("no-icons")).unwrap();
-        let body = std::fs::read_to_string(&entry).unwrap();
-        assert!(desktop_file_exec_is_ours(&body, "/a/toma"));
-        assert!(body.lines().any(|l| l == format!("Icon={}", crate::APP_ID)));
-        assert!(!desktop_file_is_current(&body, "/a/toma"));
-        assert!(!has_icon(&user));
+        assert!(desktop_file_is_current(&std::fs::read_to_string(&entry).unwrap(), "/a/toma"));
+        assert!(!icons_installed(&user));
         let _ = std::fs::remove_dir_all(&user);
     }
 
