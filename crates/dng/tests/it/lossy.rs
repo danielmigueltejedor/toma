@@ -1,9 +1,9 @@
 //! Lossy JPEG DNG (Compression 34892, DNG 1.4): 8-bit LinearRaw tiles or strips of one or three
 //! components, usually with a LinearizationTable taking the 8-bit codes back to linear values.
 
-use filmcraft_dng::tiff::tags;
-use filmcraft_dng::writer::{Compression, Layout, Options, Value, lossy_jpeg, try_write, write};
-use filmcraft_dng::{Dng, Error, decode, probe};
+use toma_dng::tiff::tags;
+use toma_dng::writer::{Compression, Layout, Options, Value, lossy_jpeg, try_write, write};
+use toma_dng::{Dng, Error, decode, probe};
 
 /// A smooth 8-bit picture (what JPEG is good at).
 fn smooth(w: usize, h: usize, spp: usize) -> Vec<u16> {

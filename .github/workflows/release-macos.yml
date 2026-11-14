@@ -88,7 +88,7 @@ jobs:
       - name: Check the DMG
         run: |
           set -euo pipefail
-          dmgs=("$DIST"/filmcraft-*-macos-"$ARCH".dmg)
+          dmgs=("$DIST"/toma-*-macos-"$ARCH".dmg)
           if [[ ${#dmgs[@]} -ne 1 || ! -f "${dmgs[0]}" ]]; then
             echo "expected exactly one macOS DMG" >&2
             exit 1
@@ -107,12 +107,12 @@ jobs:
           echo "linked against SDK $sdk"
           test "${sdk%%.*}" -ge 26
           hdiutil detach /Volumes/check
-          (cd "$DIST" && shasum -a 256 filmcraft-*-macos-* > SHA256SUMS-macos && cat SHA256SUMS-macos)
+          (cd "$DIST" && shasum -a 256 toma-*-macos-* > SHA256SUMS-macos && cat SHA256SUMS-macos)
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: filmcraft-macos-${{ env.ARCH }}
-          path: dist/filmcraft-*-macos-*
+          name: toma-macos-${{ env.ARCH }}
+          path: dist/toma-*-macos-*
           if-no-files-found: error
           retention-days: 14
 
@@ -121,4 +121,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-        run: gh release upload "$TAG" "$DIST"/filmcraft-*-macos-* --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" "$DIST"/toma-*-macos-* --clobber --repo "$GITHUB_REPOSITORY"

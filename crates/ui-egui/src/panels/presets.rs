@@ -10,12 +10,12 @@ use std::collections::BTreeMap;
 use egui::{Align2, Rect, Sense, pos2, vec2};
 use serde_json::json;
 
-use crate::FilmcraftApp;
+use crate::TomaApp;
 use crate::icons::{self, Icon};
 use crate::native_dialogs::FileDialog;
 use crate::state::SavePresetDraft;
 use crate::theme::Tokens;
-use filmcraft_engine::presets::EffectPreset;
+use toma_engine::presets::EffectPreset;
 
 /// One node of the Presets bin: sub-folders and preset indices, built from the `" ▸ "` separator
 /// in preset names (Premiere bin paths arrive that way from `.prfpset` files).
@@ -48,7 +48,7 @@ fn preset_tree(presets: &[EffectPreset], filter: &str) -> PresetNode {
 }
 
 /// A small action row at the top of the Presets folder (Import, Scan).
-fn action_row(app: &mut FilmcraftApp, ui: &mut egui::Ui, id: &str, icon: Icon, label: &str) -> bool {
+fn action_row(app: &mut TomaApp, ui: &mut egui::Ui, id: &str, icon: Icon, label: &str) -> bool {
     let t = app.tokens;
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::click());
     if resp.hovered() {
@@ -61,15 +61,7 @@ fn action_row(app: &mut FilmcraftApp, ui: &mut egui::Ui, id: &str, icon: Icon, l
     resp.clicked()
 }
 
-fn preset_folder_row(
-    app: &mut FilmcraftApp,
-    ui: &mut egui::Ui,
-    key: &str,
-    label: &str,
-    depth: usize,
-    filter: &str,
-    action: &mut Option<(String, String)>,
-) -> bool {
+fn preset_folder_row(app: &mut TomaApp, ui: &mut egui::Ui, key: &str, label: &str, depth: usize, filter: &str, action: &mut Option<(String, String)>) -> bool {
     let t = app.tokens;
     let open = !filter.is_empty() || app.ui.expanded_fx.iter().any(|k| k == key);
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::click());
@@ -112,7 +104,7 @@ fn preset_folder_row(
     open
 }
 
-fn preset_row(app: &mut FilmcraftApp, ui: &mut egui::Ui, p: &EffectPreset, depth: usize, action: &mut Option<(String, String)>) {
+fn preset_row(app: &mut TomaApp, ui: &mut egui::Ui, p: &EffectPreset, depth: usize, action: &mut Option<(String, String)>) {
     let t = app.tokens;
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::click_and_drag());
     if resp.hovered() {
@@ -165,7 +157,7 @@ fn preset_row(app: &mut FilmcraftApp, ui: &mut egui::Ui, p: &EffectPreset, depth
 }
 
 fn render_presets(
-    app: &mut FilmcraftApp,
+    app: &mut TomaApp,
     ui: &mut egui::Ui,
     node: &PresetNode,
     presets: &[EffectPreset],
@@ -189,7 +181,7 @@ fn render_presets(
 
 /// The rows of the Presets folder (inside the Effects panel's scroll area). Presets whose names
 /// carry a `" ▸ "` bin path are shown as a nested folder tree, as in Premiere's Effects panel.
-pub fn folder_rows(app: &mut FilmcraftApp, ui: &mut egui::Ui, filter: &str) -> Option<(String, String)> {
+pub fn folder_rows(app: &mut TomaApp, ui: &mut egui::Ui, filter: &str) -> Option<(String, String)> {
     let mut action = None;
     if filter.is_empty() {
         let import = action_row(app, ui, "effects.presets.import", Icon::Import, tl!("Import Presets…"));
@@ -208,7 +200,7 @@ pub fn folder_rows(app: &mut FilmcraftApp, ui: &mut egui::Ui, filter: &str) -> O
 }
 
 /// Run a Presets-bin action.
-pub fn run(app: &mut FilmcraftApp, ctx: &egui::Context, cmd: &str, name: &str) {
+pub fn run(app: &mut TomaApp, ctx: &egui::Context, cmd: &str, name: &str) {
     match cmd {
         "presets.apply" => {
             if let Err(e) = app.session.execute(cmd, json!({"preset": name})) {
@@ -296,11 +288,11 @@ pub fn run(app: &mut FilmcraftApp, ctx: &egui::Context, cmd: &str, name: &str) {
 }
 
 /// Open the Save Preset dialog for effects of a clip.
-pub fn open_save(app: &mut FilmcraftApp, clip: u64, effects: Vec<usize>, name: &str) {
+pub fn open_save(app: &mut TomaApp, clip: u64, effects: Vec<usize>, name: &str) {
     app.ui.save_preset = Some(SavePresetDraft { clip, effects, name: name.to_string(), description: String::new(), keyframes: "scale".into() });
 }
 
-pub fn save_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
+pub fn save_dialog(app: &mut TomaApp, ctx: &egui::Context) {
     let Some(mut d) = app.ui.save_preset.clone() else { return };
     let mut open = true;
     let mut close = false;

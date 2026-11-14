@@ -1,5 +1,5 @@
 [package]
-name = "filmcraft-golden"
+name = "toma-golden"
 description = "Golden-image tests for the CPU renderer/compositor and GPU-vs-CPU parity (test-only crate)"
 version.workspace = true
 edition.workspace = true
@@ -15,14 +15,14 @@ workspace = true
 [dependencies]
 
 [dev-dependencies]
-filmcraft-testkit = { workspace = true }
-filmcraft-color = { workspace = true }
-filmcraft-frame = { workspace = true }
-filmcraft-time = { workspace = true }
-filmcraft-geom = { workspace = true }
-filmcraft-media = { workspace = true }
-filmcraft-project = { workspace = true }
-filmcraft-render = { workspace = true }
-filmcraft-gpu = { workspace = true }
+toma-testkit = { workspace = true }
+toma-color = { workspace = true }
+toma-frame = { workspace = true }
+toma-time = { workspace = true }
+toma-geom = { workspace = true }
+toma-media = { workspace = true }
+toma-project = { workspace = true }
+toma-render = { workspace = true }
+toma-gpu = { workspace = true }
 pollster = "1"
 wgpu = { version = "30", features = ["wgsl", "metal", "vulkan", "dx12", "gles"] }

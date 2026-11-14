@@ -12,9 +12,9 @@ use crate::picture::{Frame, FrameRef, Sample, stores_u8};
 use crate::slice::{NalHeader, SliceHeader, nal_type};
 use crate::slicedec::{Blk, F_INTRA, F_SKIP, PicState, SliceDecoder, SliceJob};
 use crate::{ColorInfo, Picture};
-use filmcraft_bitstream::{annexb_nals, length_prefixed_nals, unescape_rbsp};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use toma_bitstream::{annexb_nals, length_prefixed_nals, unescape_rbsp};
 
 /// Most pictures one `decode` call may start: a chunk is an access unit, or a few in a transport
 /// stream packet. Each picture is a full frame, and small slices make them cheap to ask for.

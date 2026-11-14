@@ -3,10 +3,10 @@
 //! itself is a UI concern.
 use std::collections::{BTreeMap, HashSet};
 
-use filmcraft_project::{ClipId, Keyframe, Param, Sequence, TrackItem};
-use filmcraft_time::Tick;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use toma_project::{ClipId, Keyframe, Param, Sequence, TrackItem};
+use toma_time::Tick;
 
 use crate::{Result, Session, commands::bad};
 
@@ -134,8 +134,8 @@ pub(crate) fn interpolate_many(s: &mut Session, p: &Value) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use filmcraft_project::Interpolation;
     use std::sync::Arc;
+    use toma_project::Interpolation;
 
     fn fixture() -> (Session, Vec<Value>) {
         let mut s = Session::default();

@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/danielmigueltejedor/nodalia-web/main/assets/brand/nodalia-wordmark-badge.svg" width="150" alt="Nodalia">
   </a>
   <br><br>
-  <img src="https://raw.githubusercontent.com/danielmigueltejedor/toma/main/assets/app-icon/hicolor/512x512/apps/ai.storyteller.filmcraft.png" width="192" alt="Toma">
+  <img src="https://raw.githubusercontent.com/danielmigueltejedor/toma/main/assets/app-icon/hicolor/512x512/apps/dev.danielmiguelt.Toma.png" width="192" alt="Toma">
   <h1>Toma</h1>
   <p><strong>The video editor of the Nodalia suite.</strong></p>
 
@@ -40,7 +40,7 @@ You need a recent stable Rust toolchain.
 ```bash
 git clone https://github.com/getnodalia/toma.git
 cd toma
-cargo run --release -p filmcraft
+cargo run --release -p toma
 ```
 
 ## Project status

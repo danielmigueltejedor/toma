@@ -116,13 +116,13 @@ jobs:
         working-directory: dist
         run: |
           Get-ChildItem | Format-Table Name, Length
-          $lines = Get-ChildItem -File filmcraft-* | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower())  $($_.Name)" }
+          $lines = Get-ChildItem -File toma-* | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower())  $($_.Name)" }
           $lines | Set-Content -Encoding ascii SHA256SUMS-windows
           Get-Content SHA256SUMS-windows
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: filmcraft-windows
+          name: toma-windows
           path: dist/
           if-no-files-found: error
 
@@ -134,7 +134,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: filmcraft-windows
+          name: toma-windows
           path: dist
       - name: Start the portable CLI, install and remove the MSI
         shell: pwsh
@@ -146,12 +146,12 @@ jobs:
             $hash, $name = $line -split '\s+', 2
             if ((Get-FileHash -Algorithm SHA256 $name).Hash.ToLower() -ne $hash) { throw "checksum mismatch: $name" }
           }
-          Expand-Archive "filmcraft-$env:VERSION-windows-x64-portable.zip" -DestinationPath portable
-          $cli = Get-ChildItem -Recurse portable -Filter filmcraft-cli.exe | Select-Object -First 1
+          Expand-Archive "toma-$env:VERSION-windows-x64-portable.zip" -DestinationPath portable
+          $cli = Get-ChildItem -Recurse portable -Filter toma-cli.exe | Select-Object -First 1
           $out = & $cli.FullName --version
           Write-Output $out
-          if (-not ($out -match [regex]::Escape($env:VERSION))) { throw "filmcraft-cli --version does not say $env:VERSION" }
-          $msi = (Resolve-Path "filmcraft-$env:VERSION-windows-x64.msi").Path
+          if (-not ($out -match [regex]::Escape($env:VERSION))) { throw "toma-cli --version does not say $env:VERSION" }
+          $msi = (Resolve-Path "toma-$env:VERSION-windows-x64.msi").Path
           $p = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/qn', '/l*v', 'install.log' -Wait -PassThru
           if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 60; throw "install failed: $($p.ExitCode)" }
           $p = Start-Process msiexec.exe -ArgumentList '/x', "`"$msi`"", '/qn', '/l*v', 'uninstall.log' -Wait -PassThru
@@ -177,7 +177,7 @@ jobs:
           test -s "docs/release-notes/$TAG.md" || { echo "::error::docs/release-notes/$TAG.md is missing or empty"; exit 1; }
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: filmcraft-windows
+          name: toma-windows
           path: dist
       - name: Attach to the release (a draft, created if missing)
         env:

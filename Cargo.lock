@@ -1835,763 +1835,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft"
-version = "0.17.0"
-dependencies = [
- "arboard",
- "chrono",
- "cpal",
- "eframe",
- "egui",
- "filmcraft-engine",
- "filmcraft-export",
- "filmcraft-gpu",
- "filmcraft-platform",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-time",
- "filmcraft-ui-egui",
- "glob",
- "log",
- "muda",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
- "open",
- "pollster 1.0.1",
- "rfd",
- "serde_json",
- "subtle",
- "sys-locale",
- "winit",
- "winreg",
- "winresource",
- "zbus",
-]
-
-[[package]]
-name = "filmcraft-aac"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-ac3"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-apv"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-audio-dsp"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
-]
-
-[[package]]
-name = "filmcraft-automation"
-version = "0.17.0"
-dependencies = [
- "base64",
- "filmcraft-engine",
- "filmcraft-time",
- "image",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
-]
-
-[[package]]
-name = "filmcraft-av1"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
- "rayon",
- "rustix 1.1.5",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-avi"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
-]
-
-[[package]]
-name = "filmcraft-bitstream"
-version = "0.17.0"
-dependencies = [
- "craft-media",
-]
-
-[[package]]
-name = "filmcraft-captions"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "filmcraft-project",
- "filmcraft-text",
- "filmcraft-time",
- "proptest",
- "roxmltree",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-cfb"
-version = "0.17.0"
-
-[[package]]
-name = "filmcraft-cli"
-version = "0.17.0"
-dependencies = [
- "filmcraft-automation",
- "filmcraft-codecs",
- "filmcraft-engine",
- "filmcraft-export",
- "filmcraft-gpu",
- "filmcraft-media",
- "filmcraft-mpegts",
- "filmcraft-mxf",
- "filmcraft-ogg",
- "filmcraft-platform",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-time",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "filmcraft-codecs"
-version = "0.17.0"
-dependencies = [
- "filmcraft-aac",
- "filmcraft-ac3",
- "filmcraft-apv",
- "filmcraft-av1",
- "filmcraft-avi",
- "filmcraft-bitstream",
- "filmcraft-color",
- "filmcraft-dnx",
- "filmcraft-frame",
- "filmcraft-h264",
- "filmcraft-hevc",
- "filmcraft-isobmff",
- "filmcraft-matroska",
- "filmcraft-media",
- "filmcraft-mpa",
- "filmcraft-mpeg2v",
- "filmcraft-mpegts",
- "filmcraft-mxf",
- "filmcraft-ogg",
- "filmcraft-opus",
- "filmcraft-prores",
- "filmcraft-testkit",
- "filmcraft-time",
- "filmcraft-vp8",
- "filmcraft-vp9",
- "image",
- "log",
- "rayon",
- "serde_json",
- "symphonia",
- "thiserror 2.0.21",
- "web-time",
-]
-
-[[package]]
-name = "filmcraft-color"
-version = "0.17.0"
-dependencies = [
- "proptest",
- "serde",
-]
-
-[[package]]
-name = "filmcraft-dng"
-version = "0.17.0"
-dependencies = [
- "filmcraft-dng",
- "image",
- "rayon",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-dnx"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-edit"
-version = "0.17.0"
-dependencies = [
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-time",
- "proptest",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-engine"
-version = "0.17.0"
-dependencies = [
- "chrono",
- "craft-docpath",
- "filmcraft-audio-dsp",
- "filmcraft-captions",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-dng",
- "filmcraft-edit",
- "filmcraft-export",
- "filmcraft-format",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-interchange",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-mxf",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-scopes",
- "filmcraft-speech",
- "filmcraft-testkit",
- "filmcraft-text",
- "filmcraft-time",
- "filmcraft-tts",
- "image",
- "log",
- "roxmltree",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "web-time",
-]
-
-[[package]]
-name = "filmcraft-export"
-version = "0.17.0"
-dependencies = [
- "filmcraft-aac",
- "filmcraft-apv",
- "filmcraft-audio-dsp",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-dnx",
- "filmcraft-flac",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-h264enc",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-mp3enc",
- "filmcraft-mxf",
- "filmcraft-project",
- "filmcraft-prores",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-text",
- "filmcraft-time",
- "image",
- "rayon",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "web-time",
-]
-
-[[package]]
-name = "filmcraft-flac"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-format"
-version = "0.17.0"
-dependencies = [
- "chrono",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-time",
- "log",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-frame"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "filmcraft-time",
- "rayon",
- "serde",
-]
-
-[[package]]
-name = "filmcraft-geom"
-version = "0.17.0"
-dependencies = [
- "proptest",
- "serde",
-]
-
-[[package]]
-name = "filmcraft-golden"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-gpu",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-time",
- "pollster 1.0.1",
- "wgpu",
-]
-
-[[package]]
-name = "filmcraft-gpu"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "filmcraft-export",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-time",
- "image",
- "log",
- "pollster 1.0.1",
- "rayon",
- "wgpu",
-]
-
-[[package]]
-name = "filmcraft-h264"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-h264enc"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-hevc"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-interchange"
-version = "0.17.0"
-dependencies = [
- "filmcraft-cfb",
- "filmcraft-color",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-time",
- "proptest",
- "roxmltree",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-isobmff"
-version = "0.17.0"
-dependencies = [
- "craft-media",
- "filmcraft-testkit",
- "proptest",
- "serde_json",
-]
-
-[[package]]
-name = "filmcraft-matroska"
-version = "0.17.0"
-dependencies = [
- "craft-media",
- "filmcraft-testkit",
- "serde_json",
-]
-
-[[package]]
-name = "filmcraft-media"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "filmcraft-dng",
- "filmcraft-frame",
- "filmcraft-testkit",
- "filmcraft-time",
- "image",
- "png",
- "rayon",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-mp3enc"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-mpa"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-mpeg2v"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-mpegts"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-mxf"
-version = "0.17.0"
-dependencies = [
- "chrono",
- "filmcraft-testkit",
-]
-
-[[package]]
-name = "filmcraft-ogg"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
-]
-
-[[package]]
-name = "filmcraft-opus"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
-]
-
-[[package]]
-name = "filmcraft-platform"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-export",
- "filmcraft-frame",
- "filmcraft-h264",
- "filmcraft-hevc",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-time",
- "libloading",
- "log",
- "objc2-core-foundation",
- "objc2-core-media",
- "objc2-core-video",
- "objc2-video-toolbox",
- "windows 0.62.2",
-]
-
-[[package]]
-name = "filmcraft-project"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-time",
- "proptest",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "url",
-]
-
-[[package]]
-name = "filmcraft-prores"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-render"
-version = "0.17.0"
-dependencies = [
- "filmcraft-audio-dsp",
- "filmcraft-captions",
- "filmcraft-color",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-text",
- "filmcraft-time",
- "image",
- "rayon",
- "rustix 1.1.5",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "filmcraft-scopes"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "filmcraft-speech"
-version = "0.17.0"
-dependencies = [
- "candle-core",
- "candle-nn",
- "filmcraft-project",
- "filmcraft-time",
- "rayon",
- "rustls",
- "rustls-rustcrypto",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 2.0.21",
- "ureq",
-]
-
-[[package]]
-name = "filmcraft-testkit"
-version = "0.17.0"
-dependencies = [
- "chrono",
- "png",
- "tempfile",
-]
-
-[[package]]
-name = "filmcraft-text"
-version = "0.17.0"
-dependencies = [
- "filmcraft-color",
- "harfrust",
- "skrifa",
- "tempfile",
- "unicode-bidi",
- "unicode-linebreak",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "filmcraft-time"
-version = "0.17.0"
-dependencies = [
- "proptest",
- "serde",
-]
-
-[[package]]
-name = "filmcraft-tts"
-version = "0.17.0"
-dependencies = [
- "candle-core",
- "candle-nn",
- "filmcraft-audio-dsp",
- "filmcraft-tts-text",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.21",
- "zip",
-]
-
-[[package]]
-name = "filmcraft-tts-text"
-version = "0.17.0"
-dependencies = [
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-ui-egui"
-version = "0.17.0"
-dependencies = [
- "cpu-time",
- "craft-ui",
- "eframe",
- "egui",
- "egui_extras",
- "egui_kittest",
- "filmcraft-audio-dsp",
- "filmcraft-captions",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-edit",
- "filmcraft-engine",
- "filmcraft-export",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-gpu",
- "filmcraft-interchange",
- "filmcraft-media",
- "filmcraft-platform",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-scopes",
- "filmcraft-text",
- "filmcraft-time",
- "filmcraft-tts",
- "image",
- "log",
- "nodalia-update",
- "pollster 1.0.1",
- "rayon",
- "rustix 1.1.5",
- "serde",
- "serde_json",
- "tempfile",
- "toml 1.1.6+spec-1.1.0",
- "unicode-bidi",
- "web-time",
-]
-
-[[package]]
-name = "filmcraft-vp8"
-version = "0.17.0"
-dependencies = [
- "filmcraft-testkit",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-vp9"
-version = "0.17.0"
-dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "filmcraft-web"
-version = "0.17.0"
-dependencies = [
- "craft-web-api",
- "craft-web-host",
- "eframe",
- "egui",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-engine",
- "filmcraft-format",
- "filmcraft-frame",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-time",
- "filmcraft-ui-egui",
- "js-sys",
- "log",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "web-time",
-]
-
-[[package]]
 name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6636,6 +5879,763 @@ dependencies = [
 ]
 
 [[package]]
+name = "toma"
+version = "0.17.0"
+dependencies = [
+ "arboard",
+ "chrono",
+ "cpal",
+ "eframe",
+ "egui",
+ "glob",
+ "log",
+ "muda",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "open",
+ "pollster 1.0.1",
+ "rfd",
+ "serde_json",
+ "subtle",
+ "sys-locale",
+ "toma-engine",
+ "toma-export",
+ "toma-gpu",
+ "toma-platform",
+ "toma-project",
+ "toma-render",
+ "toma-time",
+ "toma-ui-egui",
+ "winit",
+ "winreg",
+ "winresource",
+ "zbus",
+]
+
+[[package]]
+name = "toma-aac"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-ac3"
+version = "0.17.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-apv"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-audio-dsp"
+version = "0.17.0"
+dependencies = [
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-automation"
+version = "0.17.0"
+dependencies = [
+ "base64",
+ "image",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "toma-engine",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-av1"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "rustix 1.1.5",
+ "thiserror 2.0.21",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-avi"
+version = "0.17.0"
+dependencies = [
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-bitstream"
+version = "0.17.0"
+dependencies = [
+ "craft-media",
+]
+
+[[package]]
+name = "toma-captions"
+version = "0.17.0"
+dependencies = [
+ "proptest",
+ "roxmltree",
+ "thiserror 2.0.21",
+ "toma-color",
+ "toma-project",
+ "toma-text",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-cfb"
+version = "0.17.0"
+
+[[package]]
+name = "toma-cli"
+version = "0.17.0"
+dependencies = [
+ "serde_json",
+ "tokio",
+ "toma-automation",
+ "toma-codecs",
+ "toma-engine",
+ "toma-export",
+ "toma-gpu",
+ "toma-media",
+ "toma-mpegts",
+ "toma-mxf",
+ "toma-ogg",
+ "toma-platform",
+ "toma-project",
+ "toma-render",
+ "toma-testkit",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-codecs"
+version = "0.17.0"
+dependencies = [
+ "image",
+ "log",
+ "rayon",
+ "serde_json",
+ "symphonia",
+ "thiserror 2.0.21",
+ "toma-aac",
+ "toma-ac3",
+ "toma-apv",
+ "toma-av1",
+ "toma-avi",
+ "toma-bitstream",
+ "toma-color",
+ "toma-dnx",
+ "toma-frame",
+ "toma-h264",
+ "toma-hevc",
+ "toma-isobmff",
+ "toma-matroska",
+ "toma-media",
+ "toma-mpa",
+ "toma-mpeg2v",
+ "toma-mpegts",
+ "toma-mxf",
+ "toma-ogg",
+ "toma-opus",
+ "toma-prores",
+ "toma-testkit",
+ "toma-time",
+ "toma-vp8",
+ "toma-vp9",
+ "web-time",
+]
+
+[[package]]
+name = "toma-color"
+version = "0.17.0"
+dependencies = [
+ "proptest",
+ "serde",
+]
+
+[[package]]
+name = "toma-dng"
+version = "0.17.0"
+dependencies = [
+ "image",
+ "rayon",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toma-dng",
+]
+
+[[package]]
+name = "toma-dnx"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-edit"
+version = "0.17.0"
+dependencies = [
+ "proptest",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-engine"
+version = "0.17.0"
+dependencies = [
+ "chrono",
+ "craft-docpath",
+ "image",
+ "log",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toma-audio-dsp",
+ "toma-captions",
+ "toma-codecs",
+ "toma-color",
+ "toma-dng",
+ "toma-edit",
+ "toma-export",
+ "toma-format",
+ "toma-frame",
+ "toma-geom",
+ "toma-interchange",
+ "toma-isobmff",
+ "toma-media",
+ "toma-mxf",
+ "toma-project",
+ "toma-render",
+ "toma-scopes",
+ "toma-speech",
+ "toma-testkit",
+ "toma-text",
+ "toma-time",
+ "toma-tts",
+ "web-time",
+]
+
+[[package]]
+name = "toma-export"
+version = "0.17.0"
+dependencies = [
+ "image",
+ "rayon",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toma-aac",
+ "toma-apv",
+ "toma-audio-dsp",
+ "toma-codecs",
+ "toma-color",
+ "toma-dnx",
+ "toma-flac",
+ "toma-frame",
+ "toma-geom",
+ "toma-h264enc",
+ "toma-isobmff",
+ "toma-media",
+ "toma-mp3enc",
+ "toma-mxf",
+ "toma-project",
+ "toma-prores",
+ "toma-render",
+ "toma-testkit",
+ "toma-text",
+ "toma-time",
+ "web-time",
+]
+
+[[package]]
+name = "toma-flac"
+version = "0.17.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-format"
+version = "0.17.0"
+dependencies = [
+ "chrono",
+ "log",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toma-media",
+ "toma-project",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-frame"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "serde",
+ "toma-color",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-geom"
+version = "0.17.0"
+dependencies = [
+ "proptest",
+ "serde",
+]
+
+[[package]]
+name = "toma-golden"
+version = "0.17.0"
+dependencies = [
+ "pollster 1.0.1",
+ "toma-color",
+ "toma-frame",
+ "toma-geom",
+ "toma-gpu",
+ "toma-media",
+ "toma-project",
+ "toma-render",
+ "toma-testkit",
+ "toma-time",
+ "wgpu",
+]
+
+[[package]]
+name = "toma-gpu"
+version = "0.17.0"
+dependencies = [
+ "image",
+ "log",
+ "pollster 1.0.1",
+ "rayon",
+ "toma-color",
+ "toma-export",
+ "toma-frame",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-render",
+ "toma-time",
+ "wgpu",
+]
+
+[[package]]
+name = "toma-h264"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-h264enc"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-hevc"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-interchange"
+version = "0.17.0"
+dependencies = [
+ "proptest",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toma-cfb",
+ "toma-color",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-isobmff"
+version = "0.17.0"
+dependencies = [
+ "craft-media",
+ "proptest",
+ "serde_json",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-matroska"
+version = "0.17.0"
+dependencies = [
+ "craft-media",
+ "serde_json",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-media"
+version = "0.17.0"
+dependencies = [
+ "image",
+ "png",
+ "rayon",
+ "serde",
+ "thiserror 2.0.21",
+ "toma-color",
+ "toma-dng",
+ "toma-frame",
+ "toma-testkit",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-mp3enc"
+version = "0.17.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-mpa"
+version = "0.17.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-mpeg2v"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-mpegts"
+version = "0.17.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-mxf"
+version = "0.17.0"
+dependencies = [
+ "chrono",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-ogg"
+version = "0.17.0"
+dependencies = [
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-opus"
+version = "0.17.0"
+dependencies = [
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-platform"
+version = "0.17.0"
+dependencies = [
+ "libloading",
+ "log",
+ "objc2-core-foundation",
+ "objc2-core-media",
+ "objc2-core-video",
+ "objc2-video-toolbox",
+ "toma-bitstream",
+ "toma-codecs",
+ "toma-color",
+ "toma-export",
+ "toma-frame",
+ "toma-h264",
+ "toma-hevc",
+ "toma-isobmff",
+ "toma-media",
+ "toma-project",
+ "toma-render",
+ "toma-testkit",
+ "toma-time",
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "toma-project"
+version = "0.17.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toma-color",
+ "toma-geom",
+ "toma-media",
+ "toma-time",
+ "url",
+]
+
+[[package]]
+name = "toma-prores"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-render"
+version = "0.17.0"
+dependencies = [
+ "image",
+ "rayon",
+ "rustix 1.1.5",
+ "serde",
+ "serde_json",
+ "toma-audio-dsp",
+ "toma-captions",
+ "toma-color",
+ "toma-frame",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-text",
+ "toma-time",
+]
+
+[[package]]
+name = "toma-scopes"
+version = "0.17.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "toma-color",
+]
+
+[[package]]
+name = "toma-speech"
+version = "0.17.0"
+dependencies = [
+ "candle-core",
+ "candle-nn",
+ "rayon",
+ "rustls",
+ "rustls-rustcrypto",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toma-project",
+ "toma-time",
+ "ureq",
+]
+
+[[package]]
+name = "toma-testkit"
+version = "0.17.0"
+dependencies = [
+ "chrono",
+ "png",
+ "tempfile",
+]
+
+[[package]]
+name = "toma-text"
+version = "0.17.0"
+dependencies = [
+ "harfrust",
+ "skrifa",
+ "tempfile",
+ "toma-color",
+ "unicode-bidi",
+ "unicode-linebreak",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "toma-time"
+version = "0.17.0"
+dependencies = [
+ "proptest",
+ "serde",
+]
+
+[[package]]
+name = "toma-tts"
+version = "0.17.0"
+dependencies = [
+ "candle-core",
+ "candle-nn",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "toma-audio-dsp",
+ "toma-tts-text",
+ "zip",
+]
+
+[[package]]
+name = "toma-tts-text"
+version = "0.17.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "toma-ui-egui"
+version = "0.17.0"
+dependencies = [
+ "cpu-time",
+ "craft-ui",
+ "eframe",
+ "egui",
+ "egui_extras",
+ "egui_kittest",
+ "image",
+ "log",
+ "nodalia-update",
+ "pollster 1.0.1",
+ "rayon",
+ "rustix 1.1.5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toma-audio-dsp",
+ "toma-captions",
+ "toma-codecs",
+ "toma-color",
+ "toma-edit",
+ "toma-engine",
+ "toma-export",
+ "toma-frame",
+ "toma-geom",
+ "toma-gpu",
+ "toma-interchange",
+ "toma-media",
+ "toma-platform",
+ "toma-project",
+ "toma-render",
+ "toma-scopes",
+ "toma-text",
+ "toma-time",
+ "toma-tts",
+ "toml 1.1.6+spec-1.1.0",
+ "unicode-bidi",
+ "web-time",
+]
+
+[[package]]
+name = "toma-vp8"
+version = "0.17.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-vp9"
+version = "0.17.0"
+dependencies = [
+ "rayon",
+ "thiserror 2.0.21",
+ "toma-bitstream",
+ "toma-testkit",
+]
+
+[[package]]
+name = "toma-web"
+version = "0.17.0"
+dependencies = [
+ "craft-web-api",
+ "craft-web-host",
+ "eframe",
+ "egui",
+ "js-sys",
+ "log",
+ "serde_json",
+ "toma-codecs",
+ "toma-color",
+ "toma-engine",
+ "toma-format",
+ "toma-frame",
+ "toma-isobmff",
+ "toma-media",
+ "toma-time",
+ "toma-ui-egui",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+]
+
+[[package]]
 name = "toml"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7976,8 +7976,8 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 name = "xtask"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
  "serde_json",
+ "toma-testkit",
 ]
 
 [[package]]

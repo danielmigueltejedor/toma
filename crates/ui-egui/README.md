@@ -10,7 +10,7 @@ enablement, colour, width and Outer/Center/Inner placement. Unstyled characters 
 layer property independently; without a character selection the controls edit the layer.
 Overrides survive text edits, project saves and Undo/Redo. A width or colour drag is one undo
 step. `graphics_ui::stroke_colour_pickers_edit_only_the_type_tool_selection` drives both rows
-through the control channel; `FILMCRAFT_UI_SHOTS` enables a rendered screenshot.
+through the control channel; `TOMA_UI_SHOTS` enables a rendered screenshot.
 
 ## Export range warnings
 
@@ -20,7 +20,7 @@ mark is set, `export.range.warning` explains how to export the whole sequence in
 The warning is advisory: exporting one frame remains valid. Entire Source, Work Area and Custom
 ranges do not show this warning. `export_ui::single_frame_in_out_warning_updates_with_range_and_marks`
 checks the warning and duration as marks and range selections change; the same test can render
-`export-single-frame-warning.png` with `FILMCRAFT_UI_SNAPSHOT_DIR`.
+`export-single-frame-warning.png` with `TOMA_UI_SNAPSHOT_DIR`.
 
 ## Control input limits
 
@@ -43,7 +43,7 @@ at Cut or End at Cut by where the pointer is relative to the cut. Ordinary effec
 clip outline. `timeline.transitionDropPreview` exposes the span and alignment to automation.
 
 `transition_drop_ui` covers the three alignments on video/audio cuts and a one-sided clip edge,
-hover without project edits, the committed span and undo. Set `FILMCRAFT_UI_SNAPSHOT_DIR` to
+hover without project edits, the committed span and undo. Set `TOMA_UI_SNAPSHOT_DIR` to
 render screenshots with wgpu.
 
 ## Localisation
@@ -75,7 +75,7 @@ build. `cargo xtask i18n-report` prints each language's missing strings (menus, 
 registry names) and its entries whose source the interface no longer has; `cargo xtask ci` prints
 the same report in its log.
 
-Verification: `cargo test -p filmcraft-ui-egui` checks catalog syntax, duplicate keys, placeholders
+Verification: `cargo test -p toma-ui-egui` checks catalog syntax, duplicate keys, placeholders
 and UI behaviour in other languages (switching, search, font coverage); `cargo xtask ci` runs the
 workspace gates. Visual checks use the control channel to switch language and capture the resulting
 panels.

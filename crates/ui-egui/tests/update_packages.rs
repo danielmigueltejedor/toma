@@ -4,7 +4,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use filmcraft_ui_egui::UPDATE_APP;
+use toma_ui_egui::UPDATE_APP;
 
 fn packaging(path: &str) -> String {
     let file = format!("{}/../../packaging/{path}", env!("CARGO_MANIFEST_DIR"));
@@ -14,26 +14,26 @@ fn packaging(path: &str) -> String {
 #[test]
 fn the_release_scripts_make_the_packages_the_updater_installs() {
     let macos = packaging("macos/package.sh");
-    assert!(macos.contains(r#"APP="$WORK/FilmCraft.app""#), "the bundle the updater swaps");
-    assert!(macos.contains(r#"DMG="$DIST/filmcraft-$VERSION-macos-$ARCH.dmg""#));
+    assert!(macos.contains(r#"APP="$WORK/Toma.app""#), "the bundle the updater swaps");
+    assert!(macos.contains(r#"DMG="$DIST/toma-$VERSION-macos-$ARCH.dmg""#));
     assert!(macos.contains("ARCH=universal"));
     let linux = packaging("linux/package.sh");
-    assert!(linux.contains(r#"BASENAME="filmcraft-$VERSION-linux-$ARCH""#));
+    assert!(linux.contains(r#"BASENAME="toma-$VERSION-linux-$ARCH""#));
     assert!(linux.contains("$BASENAME.AppImage"));
-    assert!(packaging("windows/package.ps1").contains(r#""filmcraft-$Version-windows-$Arch.msi""#));
-    assert!(packaging("windows/filmcraft.wxs").contains(r#"Key="Software\FilmCraft" Name="InstallDir" Value="[INSTALLFOLDER]""#));
-    assert_eq!(UPDATE_APP.bundle, "FilmCraft.app");
+    assert!(packaging("windows/package.ps1").contains(r#""toma-$Version-windows-$Arch.msi""#));
+    assert!(packaging("windows/toma.wxs").contains(r#"Key="Software\Toma" Name="InstallDir" Value="[INSTALLFOLDER]""#));
+    assert_eq!(UPDATE_APP.bundle, "Toma.app");
     assert_eq!(UPDATE_APP.repo, "getnodalia/toma");
 }
 
 #[test]
 fn every_published_package_reaches_the_systems_it_is_for() {
     for (package, systems) in [
-        ("filmcraft-1.0.0-macos-universal.dmg", &[("macos", "aarch64"), ("macos", "x86_64")][..]),
-        ("filmcraft-1.0.0-linux-x86_64.AppImage", &[("linux", "x86_64")]),
-        ("filmcraft-1.0.0-linux-aarch64.AppImage", &[("linux", "aarch64")]),
-        ("filmcraft-1.0.0-windows-x64.msi", &[("windows", "x86_64")]),
-        ("filmcraft-1.0.0-windows-arm64.msi", &[("windows", "aarch64")]),
+        ("toma-1.0.0-macos-universal.dmg", &[("macos", "aarch64"), ("macos", "x86_64")][..]),
+        ("toma-1.0.0-linux-x86_64.AppImage", &[("linux", "x86_64")]),
+        ("toma-1.0.0-linux-aarch64.AppImage", &[("linux", "aarch64")]),
+        ("toma-1.0.0-windows-x64.msi", &[("windows", "x86_64")]),
+        ("toma-1.0.0-windows-arm64.msi", &[("windows", "aarch64")]),
     ] {
         let found = nodalia_update::systems_for_package(package);
         for system in systems {

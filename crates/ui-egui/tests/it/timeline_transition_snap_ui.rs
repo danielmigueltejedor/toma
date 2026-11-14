@@ -6,8 +6,8 @@
 //! cross dissolve centred on their cut (33..63f), at 2.5 px a frame.
 
 use egui::pos2;
-use filmcraft_engine::Session;
 use serde_json::json;
+use toma_engine::Session;
 
 use super::timeline_transition_move_ui::{harness, pointer, rect, step};
 

@@ -1,7 +1,7 @@
 use super::*;
-use filmcraft_geom::{Affine, Vec2};
-use filmcraft_render::Blend;
-use filmcraft_render::plan::execute_cpu;
+use toma_geom::{Affine, Vec2};
+use toma_render::Blend;
+use toma_render::plan::execute_cpu;
 
 fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
     let instance = crate::adapter::native_instance();
@@ -22,7 +22,7 @@ fn yuv_code_range_uniforms() {
                 alpha: 0.0,
                 chroma: (1, 1),
                 size: (1, 1),
-                color: filmcraft_color::ColorInfo { range, ..filmcraft_color::ColorInfo::REC709 },
+                color: toma_color::ColorInfo { range, ..toma_color::ColorInfo::REC709 },
                 input: None,
             };
             let u = GpuCompositor::uniforms(&src, &Affine::IDENTITY, 1.0, Blend::Normal, (1, 1));
@@ -63,7 +63,7 @@ fn yuv_code_range_gpu_matches_cpu() {
                     width: 256,
                     height: 1,
                     data,
-                    color: filmcraft_color::ColorInfo { range, ..filmcraft_color::ColorInfo::REC709 },
+                    color: toma_color::ColorInfo { range, ..toma_color::ColorInfo::REC709 },
                     par: (1, 1),
                     pts: Default::default(),
                 });
@@ -96,7 +96,7 @@ fn yuv_frame(w: u32, h: u32) -> Arc<VideoFrame> {
         width: w,
         height: h,
         data: PixelData::Yuv8 { planes: [Arc::new(y), Arc::new(u), Arc::new(v)], chroma: Chroma::C420, alpha: None },
-        color: filmcraft_color::ColorInfo::REC709,
+        color: toma_color::ColorInfo::REC709,
         par: (1, 1),
         pts: Default::default(),
     })
@@ -109,15 +109,9 @@ fn gpu_matches_cpu_plan() {
         return;
     };
     let mut c = GpuCompositor::new(&dev, &q);
-    let pixels = filmcraft_media::generators::render(
-        &filmcraft_media::Generator::Demo(filmcraft_media::DemoScene::OceanSunset),
-        320,
-        180,
-        1.0,
-        24,
-        filmcraft_time::FrameRate::FPS_24,
-    )
-    .unwrap();
+    let pixels =
+        toma_media::generators::render(&toma_media::Generator::Demo(toma_media::DemoScene::OceanSunset), 320, 180, 1.0, 24, toma_time::FrameRate::FPS_24)
+            .unwrap();
     let rgba = Arc::new(VideoFrame::rgba8(320, 180, pixels));
     let (w, h) = (320usize, 180usize);
     let plan = FramePlan::Layers {
@@ -167,7 +161,7 @@ fn half_float_conversion() {
 
 #[test]
 fn gpu_push_matches_cpu_with_alpha_and_surrounding_blends() {
-    use filmcraft_project::ParamValue;
+    use toma_project::ParamValue;
     let Some((dev, q)) = device() else {
         eprintln!("no GPU adapter; skipping");
         return;
@@ -189,7 +183,7 @@ fn gpu_push_matches_cpu_with_alpha_and_surrounding_blends() {
     for direction in 0..4 {
         for blur in [0.0, 50.0, 100.0] {
             for progress in [0.0, 0.25, 0.37, 0.5, 0.75, 1.0] {
-                let mut effect = filmcraft_project::find_effect("push").unwrap().instance();
+                let mut effect = toma_project::find_effect("push").unwrap().instance();
                 effect.param_mut("direction").unwrap().value = ParamValue::Choice(direction);
                 effect.param_mut("motion_blur").unwrap().value = ParamValue::Float(blur);
                 let mut above = layer(1);
@@ -225,7 +219,7 @@ fn gpu_push_matches_cpu_with_alpha_and_surrounding_blends() {
         height: h,
         steps: vec![PlanStep::Transition {
             inputs: [vec![layer(0)], vec![layer(1)]],
-            effect: filmcraft_project::find_effect("cross_dissolve").unwrap().instance(),
+            effect: toma_project::find_effect("cross_dissolve").unwrap().instance(),
             progress: 0.37,
             scale: 1.0,
         }],
@@ -240,7 +234,7 @@ fn gpu_push_matches_cpu_with_alpha_and_surrounding_blends() {
     // Reuse both input targets across ordered transitions; preparation advances past intervening layers.
     let transition = |progress| PlanStep::Transition {
         inputs: [vec![layer(0)], vec![layer(1)]],
-        effect: filmcraft_project::find_effect("push").unwrap().instance(),
+        effect: toma_project::find_effect("push").unwrap().instance(),
         progress,
         scale: 1.0,
     };
@@ -280,7 +274,7 @@ fn prepared_upload_matches_inline_conversion() {
             bits: 10,
             alpha: None,
         },
-        color: filmcraft_color::ColorInfo::REC709,
+        color: toma_color::ColorInfo::REC709,
         par: (1, 1),
         pts: Default::default(),
     });
@@ -294,7 +288,7 @@ fn prepared_upload_matches_inline_conversion() {
             PlanLayer { frame: rgbaf, matrix: Affine::scale(0.5, 0.5), opacity: 0.8, blend: Blend::Normal, fx: None, input: None },
         ],
     };
-    let image = FramePlan::Image(filmcraft_render::Image { w: w as usize, h: h as usize, px: f32_layer });
+    let image = FramePlan::Image(toma_render::Image { w: w as usize, h: h as usize, px: f32_layer });
     for plan in [layers, image] {
         let mut a = GpuCompositor::new(&dev, &q);
         a.composite(&plan);
@@ -339,9 +333,8 @@ fn gpu_lut_matches_cpu_tetrahedral() {
     };
     let g = GpuLut::new(&dev, &q);
     for size in [2usize, 17, 33, 65] {
-        let mut lut = filmcraft_color::Lut3d::from_fn(size, |c| {
-            [(c[0] * c[1] + c[2] * c[2]).sin(), c[1].powf(0.45) * (1.0 - 0.3 * c[0]), (c[0] - c[2]).abs() + 0.1 * c[1]]
-        });
+        let mut lut =
+            toma_color::Lut3d::from_fn(size, |c| [(c[0] * c[1] + c[2] * c[2]).sin(), c[1].powf(0.45) * (1.0 - 0.3 * c[0]), (c[0] - c[2]).abs() + 0.1 * c[1]]);
         if size == 17 {
             lut.domain_min = [-0.1, 0.0, 0.0];
             lut.domain_max = [1.2, 1.0, 2.0];
@@ -370,8 +363,8 @@ fn gpu_lut_matches_cpu_tetrahedral() {
     }
 }
 
-fn test_masks(scale: f32) -> Vec<filmcraft_render::mask::FlatMask> {
-    use filmcraft_project::{Mask, MaskMode, MaskPath, ParamValue};
+fn test_masks(scale: f32) -> Vec<toma_render::mask::FlatMask> {
+    use toma_project::{Mask, MaskMode, MaskPath, ParamValue};
     let mut a = Mask::new("a", MaskPath::ellipse(Vec2::new(150.0, 90.0), Vec2::new(90.0, 55.0)));
     a.feather.value = ParamValue::Float(24.0);
     a.expansion.value = ParamValue::Float(6.0);
@@ -383,7 +376,7 @@ fn test_masks(scale: f32) -> Vec<filmcraft_render::mask::FlatMask> {
     c.mode = MaskMode::Difference;
     c.inverted = true;
     c.feather.value = ParamValue::Float(3.5);
-    filmcraft_render::mask::prepare(&[a, b, c], filmcraft_time::Tick(0), scale)
+    toma_render::mask::prepare(&[a, b, c], toma_time::Tick(0), scale)
 }
 
 #[test]
@@ -396,7 +389,7 @@ fn gpu_mask_coverage_matches_cpu() {
     for scale in [1.0f32, 0.5] {
         let masks = test_masks(scale);
         let (w, h) = ((320.0 * scale) as usize, (180.0 * scale) as usize);
-        let cpu = filmcraft_render::mask::coverage(&masks, w, h).unwrap();
+        let cpu = toma_render::mask::coverage(&masks, w, h).unwrap();
         let gpu = g.coverage(&masks, w, h).expect("gpu coverage");
         let worst = cpu.iter().zip(&gpu).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
         eprintln!("mask coverage @{scale}: max |cpu − gpu| = {worst:e}");
@@ -414,13 +407,13 @@ fn gpu_masked_mix_matches_cpu() {
     let g = crate::GpuMask::new(&dev, &q);
     let masks = test_masks(1.0);
     let (w, h) = (320usize, 180usize);
-    let original = filmcraft_render::Image { w, h, px: (0..w * h * 4).map(|i| ((i * 37) % 101) as f32 / 100.0).collect() };
+    let original = toma_render::Image { w, h, px: (0..w * h * 4).map(|i| ((i * 37) % 101) as f32 / 100.0).collect() };
     let mut effected = original.clone();
     effected.px.iter_mut().for_each(|v| *v = 1.0 - *v * 0.5);
     let gpu = g.mix(&masks, w, h, &original.px, &effected.px).expect("gpu mix");
-    let cov = filmcraft_render::mask::coverage(&masks, w, h).unwrap();
+    let cov = toma_render::mask::coverage(&masks, w, h).unwrap();
     let mut cpu = effected.clone();
-    filmcraft_render::mask::mix(&mut cpu, &original, &cov);
+    toma_render::mask::mix(&mut cpu, &original, &cov);
     let worst = cpu.px.iter().zip(&gpu).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
     eprintln!("masked mix: max |cpu − gpu| = {worst:e}");
     assert!(worst < 2e-4, "{worst}");
@@ -446,7 +439,7 @@ fn yuv_alpha_frame(w: u32, h: u32, bits: u32) -> Arc<VideoFrame> {
             alpha: Some(Arc::new((0..n).map(ramp).collect())),
         }
     };
-    Arc::new(VideoFrame { width: w, height: h, data, color: filmcraft_color::ColorInfo::REC709, par: (1, 1), pts: Default::default() })
+    Arc::new(VideoFrame { width: w, height: h, data, color: toma_color::ColorInfo::REC709, par: (1, 1), pts: Default::default() })
 }
 
 /// A Y'CbCr layer with an alpha plane (ProRes 4444) is drawn with its alpha: the GPU result matches
@@ -458,15 +451,9 @@ fn gpu_draws_yuv_alpha_plane_like_the_cpu() {
         return;
     };
     let (w, h) = (320usize, 180usize);
-    let pixels = filmcraft_media::generators::render(
-        &filmcraft_media::Generator::Demo(filmcraft_media::DemoScene::OceanSunset),
-        320,
-        180,
-        1.0,
-        24,
-        filmcraft_time::FrameRate::FPS_24,
-    )
-    .unwrap();
+    let pixels =
+        toma_media::generators::render(&toma_media::Generator::Demo(toma_media::DemoScene::OceanSunset), 320, 180, 1.0, 24, toma_time::FrameRate::FPS_24)
+            .unwrap();
     let background = Arc::new(VideoFrame::rgba8(320, 180, pixels));
     for bits in [8, 10, 12] {
         let mut c = GpuCompositor::new(&dev, &q);
@@ -513,7 +500,7 @@ fn fast_half_float_conversion_matches_the_reference_for_every_value() {
 /// running the same `InputTransform`.
 #[test]
 fn hdr_input_gpu_matches_cpu() {
-    use filmcraft_color::{ColorInfo, ColorPipeline, ColorSpace, InputTransform, Matrix, Primaries, Transfer};
+    use toma_color::{ColorInfo, ColorPipeline, ColorSpace, InputTransform, Matrix, Primaries, Transfer};
     let Some((dev, q)) = device() else {
         eprintln!("no GPU adapter; skipping");
         return;
@@ -557,8 +544,8 @@ fn hdr_input_gpu_matches_cpu() {
 
 #[test]
 fn gpu_adjustment_step_matches_cpu_between_layers() {
-    use filmcraft_project::ParamValue;
-    use filmcraft_render::gpufx::FxOp;
+    use toma_project::ParamValue;
+    use toma_render::gpufx::FxOp;
     let Some((dev, q)) = device() else {
         eprintln!("no GPU adapter; skipping");
         return;
@@ -585,14 +572,14 @@ fn gpu_adjustment_step_matches_cpu_between_layers() {
         PlanLayer::new(Arc::new(VideoFrame::rgba_f32(w as u32, h as u32, px)), Affine::IDENTITY, 1.0, Blend::Normal)
     };
     let effect = |id: &str, params: &[(&str, f64)]| {
-        let mut e = filmcraft_project::find_effect(id).unwrap().instance();
+        let mut e = toma_project::find_effect(id).unwrap().instance();
         for (p, v) in params {
             e.param_mut(p).unwrap().value = ParamValue::Float(*v);
         }
         e
     };
-    let cx = filmcraft_render::effects::FxCtx {
-        t: filmcraft_time::Tick::ZERO,
+    let cx = toma_render::effects::FxCtx {
+        t: toma_time::Tick::ZERO,
         px_scale: 1.0,
         seconds: 0.0,
         timecode: "",
@@ -600,7 +587,7 @@ fn gpu_adjustment_step_matches_cpu_between_layers() {
         project: None,
         env: None,
         frame_rate: 24.0,
-        working: filmcraft_color::WorkingSpace::Rec709,
+        working: toma_color::WorkingSpace::Rec709,
     };
     let chain = [
         effect("proc_amp", &[("brightness", 20.0)]),

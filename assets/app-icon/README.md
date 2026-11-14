@@ -25,30 +25,30 @@ hicolor PNG, so it has the Linux margin and shadow.
 
 | File | What |
 |---|---|
-| `filmcraft.svg` | master: the portrait as a 1024 px image embedded in an SVG with the tile clip (canonical) |
-| `filmcraft-small.svg` | lighter 512 px version; also the web favicon where there is one |
-| `filmcraft-1024.png` | 1024 px render |
-| `filmcraft-macos-512.png` | runtime Dock icon on macOS (embedded by `apps/filmcraft/src/main.rs`) |
-| `filmcraft.icns` | macOS bundle icon (`CFBundleIconFile`) |
-| `filmcraft.ico` | Windows icon, 16–256 px (embedded in `filmcraft.exe` by `apps/filmcraft/build.rs`) |
-| `hicolor/<size>/apps/ai.storyteller.filmcraft.png`, `hicolor/scalable/…svg` | Linux icon theme, used by `packaging/linux/ai.storyteller.filmcraft.desktop` |
+| `toma.svg` | master: the portrait as a 1024 px image embedded in an SVG with the tile clip (canonical) |
+| `toma-small.svg` | lighter 512 px version; also the web favicon where there is one |
+| `toma-1024.png` | 1024 px render |
+| `toma-macos-512.png` | runtime Dock icon on macOS (embedded by `apps/toma/src/main.rs`) |
+| `toma.icns` | macOS bundle icon (`CFBundleIconFile`) |
+| `toma.ico` | Windows icon, 16–256 px (embedded in `toma.exe` by `apps/toma/build.rs`) |
+| `hicolor/<size>/apps/dev.danielmiguelt.Toma.png`, `hicolor/scalable/…svg` | Linux icon theme, used by `packaging/linux/dev.danielmiguelt.Toma.desktop` |
 
-The web app's `apps/filmcraft-web/web/favicon.png` (128 px) comes from the same artwork.
+The web app's `apps/toma-web/web/favicon.png` (128 px) comes from the same artwork.
 
 ## How the icon reaches each OS
 
 - **macOS:** the window icon set at startup (`ViewportBuilder::with_icon`) is the Dock and app-switcher
-  icon when the app runs unbundled. A future `.app` bundle points `CFBundleIconFile` at `filmcraft.icns`.
-- **Windows:** `build.rs` embeds `filmcraft.ico` as the exe's resource icon (Explorer, Start menu,
+  icon when the app runs unbundled. A future `.app` bundle points `CFBundleIconFile` at `toma.icns`.
+- **Windows:** `build.rs` embeds `toma.ico` as the exe's resource icon (Explorer, Start menu,
   pinned taskbar), and the runtime icon covers the window, taskbar and Alt-Tab.
-- **Linux:** the runtime icon plus `with_app_id("ai.storyteller.filmcraft")`, which Wayland matches to
+- **Linux:** the runtime icon plus `with_app_id("dev.danielmiguelt.Toma")`, which Wayland matches to
   the `.desktop` file. Install the `hicolor/` tree under `/usr/share/icons/hicolor/`, with a copy of each
-  `ai.storyteller.filmcraft.*` icon named `dev.danielmiguelt.Toma.*` (the `.desktop` file's `Icon=`), and
+  `dev.danielmiguelt.Toma.*` icon named `dev.danielmiguelt.Toma.*` (the `.desktop` file's `Icon=`), and
   the desktop file under `/usr/share/applications/`.
 
 ## Regenerate
 
 The icon is a raster portrait, so the SVG files embed an image instead of traced paths. The
 derived files in this directory were rendered directly from the portrait. `packaging/icons.sh`
-still works on `filmcraft.svg` (resvg renders embedded images), but its output will differ slightly
+still works on `toma.svg` (resvg renders embedded images), but its output will differ slightly
 from the committed files in resampling.

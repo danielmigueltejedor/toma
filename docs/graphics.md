@@ -18,7 +18,7 @@ kerning and ligatures, bidi, line breaking, all drawn as vectors in linear light
   the same stopwatch as Effect Controls (`graphics.prop.<id>.stopwatch`, #2358): once a property
   animates, changing it in the panel adds or updates a keyframe at the playhead. Standard effects on a graphic
   clip apply to the composed graphic; Motion and Opacity apply last.
-- `filmcraft_project::graphic::eval_layer` evaluates a layer at a time into a `LayerSpec`.
+- `toma_project::graphic::eval_layer` evaluates a layer at a time into a `LayerSpec`.
 - Projects with graphics need no schema migration: everything is additive (new item kind, new
   effect ids). Builds older than this one refuse such files with a parse error.
 
@@ -170,7 +170,7 @@ underline, strikethrough, tracking, baseline shift or caps in the Properties pan
 selection only (`graphics.setCharStyle`). Styles are stored on the layer as runs of characters
 (`EffectInstance::layer.runs`, character offsets, sorted and non-overlapping) and follow the text
 when it is edited (typed characters take the style of the character before them). The text engine
-lays the runs out together (`filmcraft_text::layout_rich`): a run can change the font and size,
+lays the runs out together (`toma_text::layout_rich`): a run can change the font and size,
 lines grow to fit the largest run, and each run can have its own fill colour.
 
 | Command | Params |
@@ -215,7 +215,7 @@ These settings are `TrackItem::graphic` (`GraphicMeta`, schema v12).
 ## Graphics templates (`.fcgt`)
 
 Toma's equivalent of motion graphics templates is its **own** format: a `.fcgt` file is
-documented, versioned JSON (`filmcraft_project::gtemplate`):
+documented, versioned JSON (`toma_project::gtemplate`):
 
 | Field | Meaning |
 |---|---|

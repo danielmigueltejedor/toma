@@ -97,17 +97,17 @@ reproduce an image (for example, point lists traced from someone else's icon).
    `crates/media`, procedural looks in `crates/render`) are original work under the project licence
    and are listed in `ATTRIBUTION.md`.
 7. **When in doubt, leave it out** and draw or generate it yourself.
-8. **The one exception: first-party ArtCraft brand marks.** The ArtCraft name and logos in `docs/brand/`
+8. **The one exception: first-party Nodalia brand marks.** The Nodalia name and logos in `docs/brand/`
    are trademarks of the ArtCraft Team, not open source, usable only unmodified and only in the context of
    Toma under `docs/brand/LICENSE-brand.txt`; forks and modified versions must remove them. They still
-   need a sidecar and an `ATTRIBUTION.md` row (licence `LicenseRef-ArtCraft-Trademark`). No other
+   need a sidecar and an `ATTRIBUTION.md` row (licence `LicenseRef-Nodalia-Trademark`). No other
    non-open asset is allowed, and this exception never covers third-party marks (Adobe, Discord, GitHub
    and other logos stay out; draw a generic icon instead).
 9. **Fonts live in [getnodalia/foundation's `vendor/craft-fonts/main` branch](https://github.com/getnodalia/foundation/tree/vendor/craft-fonts/main), never in this
    repo.** Don't commit new font files (the small Latin UI fonts already in `assets/fonts/` stay). A
    font Toma needs is added to craft-fonts, which the app reads through the optional build input
    `CRAFT_FONTS_DIR=<absolute path of a craft-fonts checkout>` (`crates/text/build.rs` embeds the fonts in its
-   `fonts/manifest.txt` as `filmcraft_text::fonts::CRAFT_FONTS`; unset, it is empty and the app uses its
+   `fonts/manifest.txt` as `toma_text::fonts::CRAFT_FONTS`; unset, it is empty and the app uses its
    bundled and system fonts). Never add craft-fonts to a `Cargo.toml`. Code using `CRAFT_FONTS` must work
    when it is empty.
 
@@ -143,8 +143,8 @@ In an idle session, a rejected duplicate move retains the project and its undo a
 Selection-derived edit plans keep each identity once in first-occurrence order before expanding
 linked partners; explicit move requests with repeated identities are still rejected.
 
-- **Layering** ([`docs/architecture.md`](docs/architecture.md) §1, enforced by `cargo xtask layers`): nothing below L5 depends on egui/eframe/winit/rfd/cpal. L0 codec/container crates depend only on `filmcraft-bitstream`.
-- **Exact time:** all time is `filmcraft_time::Tick` (254 016 000 000/s). Never use f64 seconds for edit math.
+- **Layering** ([`docs/architecture.md`](docs/architecture.md) §1, enforced by `cargo xtask layers`): nothing below L5 depends on egui/eframe/winit/rfd/cpal. L0 codec/container crates depend only on `toma-bitstream`.
+- **Exact time:** all time is `toma_time::Tick` (254 016 000 000/s). Never use f64 seconds for edit math.
 - **Everything is a command** (`crates/engine`): id, label, menu path, shortcut, params, enabled(), run(). UI, CLI, control channel and MCP all dispatch by id.
 - **Everything is agent-drivable:** every interactive widget registers an automation id; UI state is serde so the control channel can read and set it.
 - **Fonts** are the optional build input `CRAFT_FONTS_DIR` (`crates/text/build.rs`). Unset, the build must still pass. Never add craft-fonts to a `Cargo.toml`.
@@ -152,7 +152,7 @@ linked partners; explicit move requests with repeated identities are still rejec
 - **Quality gates** before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, layers, assets, wasm).
 - New workspace crates include `[lints] workspace = true` in `Cargo.toml`. Production crate roots declare the crate-level lint attributes before modules; crate-level `//!` documentation may precede them.
 - **Commits:** one task id per commit (`M2.4: CABAC residual decoding`). Only green states.
-- `cargo run -p filmcraft -- --control 9876` opens the desktop app (`docs/control-protocol.md`). For UI work, look at `ui.screenshot`. Generate fixtures with ffmpeg into `target/fixtures/` and do not commit media (`docs/testing.md`).
+- `cargo run -p toma -- --control 9876` opens the desktop app (`docs/control-protocol.md`). For UI work, look at `ui.screenshot`. Generate fixtures with ffmpeg into `target/fixtures/` and do not commit media (`docs/testing.md`).
 - `plan/` is an optional gitignored notebook (`plan/premiere/` may hold local screenshots). Do not ask for it and do not stop when it is absent. Public work lists are [`ROADMAP.md`](ROADMAP.md), [`docs/gaps.md`](docs/gaps.md) and [`docs/agents.md`](docs/agents.md).
 
 Shared real-file test corpora (Photoshop-authored PSDs, etc.) live in

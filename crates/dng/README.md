@@ -1,4 +1,4 @@
-# filmcraft-dng
+# toma-dng
 
 Clean-room DNG and CinemaDNG camera RAW decoder in pure Rust. Layer L0: depends on `thiserror`,
 `image` (its baseline JPEG decoder only, for lossy JPEG DNG; the workspace already uses it in
@@ -28,17 +28,17 @@ when it is installed, never linked.
 ## API
 
 ```rust
-if filmcraft_dng::sniff(&bytes) {
-    let dng = filmcraft_dng::Dng::parse(&bytes)?;
+if toma_dng::sniff(&bytes) {
+    let dng = toma_dng::Dng::parse(&bytes)?;
     let info = dng.info()?;     // size after crop, bits, CFA or LinearRaw, frame rate, time code, camera, reel
     let raw = dng.raw()?;       // the stored samples (u16), bit-exact
     let img = dng.develop()?;   // linear Rec. 709 RGBA f32 (alpha 1), info.width × info.height
 }
-let img = filmcraft_dng::decode(&bytes)?; // parse + develop
+let img = toma_dng::decode(&bytes)?; // parse + develop
 // raw settings: white balance (as shot or temperature / tint), exposure, highlights, demosaic
 // quality, output space, and a target size for a reduced-resolution fast path
-let o = filmcraft_dng::ProcessOptions { exposure: 0.5, ..Default::default() };
-let img = filmcraft_dng::decode_with(&bytes, &o)?;
+let o = toma_dng::ProcessOptions { exposure: 0.5, ..Default::default() };
+let img = toma_dng::decode_with(&bytes, &o)?;
 ```
 
 `ProcessOptions::default()` develops exactly like `decode`. `Highlights::Recover` is accepted but
@@ -103,7 +103,7 @@ the raw image in a SubIFD, and arbitrary extra tags.
   picture develops at 1/2, 1/4 or 1/8 size (the smallest that still covers the target) by
   averaging each colour over 2 × 2 (4 × 4, 8 × 8) blocks of the crop, without a demosaic: about
   three times less processing at half size.
-- `cargo run --release -p filmcraft-dng --example bench` times the current pipeline against the
+- `cargo run --release -p toma-dng --example bench` times the current pipeline against the
   reference at 1, 4 and 16 threads, interleaved in one run.
 
 ## Not supported (errors name them)

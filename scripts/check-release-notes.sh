@@ -16,7 +16,7 @@ set -euo pipefail
 
 # What differs between apps: the packages' file prefix, as named in the downloads table
 # (APP-X.Y.Z-…), and the file that holds the version, read from stdin by read_version.
-app=filmcraft
+app=toma
 manifest=Cargo.toml
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

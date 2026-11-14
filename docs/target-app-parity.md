@@ -2,7 +2,7 @@
 
 > **Last reviewed:** 2026-10-10 · **Last updated:** 2026-11-08 · **Change:** minor (AVI import #650, E-AC-3 decode #647 and Russian menus #610 no longer counted as missing; percentages and hours not re-measured) · **Target:** Adobe Premiere Pro 2026 (26.5.2, macOS)
 
-> **Naming update (2026-11-08):** First-party feature labels now follow the selected ArtCraft naming scheme in [PR #1880](https://github.com/storytold/filmcraft/pull/1880). Capabilities, estimates and parity scores were not re-measured.
+> **Naming update (2026-11-08):** First-party feature labels now follow the selected Nodalia naming scheme in [PR #1880](https://github.com/storytold/filmcraft/pull/1880). Capabilities, estimates and parity scores were not re-measured.
 
 The authoritative assessment of how close Toma is to Premiere Pro, and how much work is left.
 [ROADMAP.md](../ROADMAP.md) summarizes it; [gaps.md](gaps.md) lists every shortfall one at a time.

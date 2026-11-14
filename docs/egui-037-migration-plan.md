@@ -2,7 +2,7 @@
 
 Current reconciliation (2026-10-25): the local tree incorporates main
 `a504f3c5adc4cd60d9c1120916cddb50c9b24b86`. Managed CI
-`egui037-filmcraft-oracle8-full-ci-20261025-0871` passed formatting, strict lint,
+`egui037-toma-oracle8-full-ci-20261025-0871` passed formatting, strict lint,
 workspace tests and doctests, assets, layers and the 49-crate WASM check.
 It recorded 3,756 passing test executions, zero failures and 45 ignored across
 164 summaries. Required external oracles used the retained checksum-pinned
@@ -16,15 +16,15 @@ and captured main are historical.
 
 Historical landing status, 2026-10-25: the migration integrates main `bfc23840b603e69c782302c6ed04d4a9f6ec26a8` and uses egui `6d518fc799681571963842f95b55a6b68431b15a`, winit `a517b3846ee8457d84ee4975110bfda6797c44dc` and craft-ui `25da1314d443171b4adeaad2cd9454b273f35c6f`. Cargo.lock SHA-256 is `8ddb2d92ec359928491b47c084501bbecaa9ff708d678156dab99d1cbd24642e`; the independent media/document-path pins remain selected in the lockfile. Release workflows use craft-fonts `b076417b5880bd4154bd22f00695b1d28c6bea83`.
 
-Fresh static review verified preservation of the captured main and the final dependency graph. The final managed CI run `egui037-filmcraft-oracle8-full-ci-20261025-0570` passed formatting, strict lint, workspace tests and doctests, layers, assets and the 49-crate WASM check, including the web app. It recorded 3,733 passing test executions, zero failures and 45 ignored across 164 summaries. Earlier passing counts below qualify their historical snapshots only. The icon-font attribution URL now identifies the selected egui source; font bytes are unchanged. Visible GUI, browser/platform runtime, native IME, final packages and paired performance remain separate acceptance gates. Human review and human merge are required.
+Fresh static review verified preservation of the captured main and the final dependency graph. The final managed CI run `egui037-toma-oracle8-full-ci-20261025-0570` passed formatting, strict lint, workspace tests and doctests, layers, assets and the 49-crate WASM check, including the web app. It recorded 3,733 passing test executions, zero failures and 45 ignored across 164 summaries. Earlier passing counts below qualify their historical snapshots only. The icon-font attribution URL now identifies the selected egui source; font bytes are unchanged. Visible GUI, browser/platform runtime, native IME, final packages and paired performance remain separate acceptance gates. Human review and human merge are required.
 
-External oracle checks ran with `FILMCRAFT_REQUIRE_ORACLES=1`, checksum-pinned FFmpeg 8.1.3 (`n8.1.3-24-g92611900bb`) and fresh generated fixtures. An earlier run using FFmpeg 7.1.5 failed ten codec/oracle/workflow tests. All ten passed unchanged with the new tools in managed job0567, before the full suite passed in0570; no decoder, tolerance or fixture-source changes were made to clear them. The newer tool provides the required APV, half-float, SVT-AV1 and Kvazaar capabilities. It remains a private external oracle, not an app dependency or distributed asset.
+External oracle checks ran with `TOMA_REQUIRE_ORACLES=1`, checksum-pinned FFmpeg 8.1.3 (`n8.1.3-24-g92611900bb`) and fresh generated fixtures. An earlier run using FFmpeg 7.1.5 failed ten codec/oracle/workflow tests. All ten passed unchanged with the new tools in managed job0567, before the full suite passed in0570; no decoder, tolerance or fixture-source changes were made to clear them. The newer tool provides the required APV, half-float, SVT-AV1 and Kvazaar capabilities. It remains a private external oracle, not an app dependency or distributed asset.
 
 The original planning and earlier qualification record follows. Its pins, hashes, paths and passing counts are historical.
 
 
 Status: local implementation revision after the independent adversarial reviews of
-`plan-reviews/filmcraft-v1.md` and `filmcraft-v2.md`. The owned checkout now contains the
+`plan-reviews/toma-v1.md` and `toma-v2.md`. The owned checkout now contains the
 0.37 migration work; commits, pushes, publications, and final immutable pins/lock remain
 gated. This document is the implementation contract, not publication acceptance. Every
 statement about runtime behavior below is source inspection at the recorded revisions unless
@@ -37,8 +37,8 @@ is a disposition index only; it does not override any section.
 
 | Item | Value |
 |---|---|
-| Repository | `storytold/filmcraft` |
-| Assigned checkout | `/home/codex/work/CraftApps/egui037-migration-20261022/filmcraft-implementation` |
+| Repository | `getnodalia/toma` |
+| Assigned checkout | `/home/codex/work/CraftApps/egui037-migration-20261022/toma-implementation` |
 | Latest qualified tree | HEAD `4ce159e1cda036bbc972d6d27d125626ff714b98` (2026-10-25; merge of migration `df5f86ae` and main `bfc23840`), with main `a504f3c5adc4cd60d9c1120916cddb50c9b24b86` merged locally but uncommitted; `Cargo.toml` SHA-256 `d544c4368d222e79e34be0c681b3b34f435109903b4f85f1ccc4ff27e35b8efb`; `Cargo.lock` SHA-256 `8ddb2d92ec359928491b47c084501bbecaa9ff708d678156dab99d1cbd24642e` |
 | Planning-snapshot branch HEAD (historical) | `fa550ce2d07bdfee6b1d7b6835e8abc8c6913d00` (2026-10-24; migration work is uncommitted on this base) |
 | Planning baseline (historical) | `abf44fda9015f4b7a96dc338f6042499bf8e9d9f` (2026-10-22, "Reject non-hex characters in colour hex parsing (#2600)") |
@@ -51,7 +51,7 @@ is a disposition index only; it does not override any section.
 | Research candidate | `aiongg/egui` `craft/0.37` = `a4f9a17f64a6bae61350fb85804c9df0d9865916`; `aiongg/winit` `craft/0.30.13-lang` = `8b35388bd719e8cc86a95971ba0bc026c9a8f058` |
 | Production fork pins | **Unknown and deliberately not invented.** They become valid only after reviewed, published immutable `storytold/egui` and `storytold/winit` commits exist. See §3.2 and §15 gate G-PINS. |
 | Evidence directory | `/home/codex/work/ssd2/task-evidence/egui037-migration-20261022` |
-| Historical diagnostics | `/home/codex/work/ssd2/task-evidence/egui037-audit-20261022/{fork,stock}/filmcraft.errors` — older checkout (Toma manifest 0.10.0), clues only, never acceptance |
+| Historical diagnostics | `/home/codex/work/ssd2/task-evidence/egui037-audit-20261022/{fork,stock}/toma.errors` — older checkout (Toma manifest 0.10.0), clues only, never acceptance |
 
 The existing `App::logic` / `App::ui` split and root-`Ui` architecture are **not** introduced
 by 0.37 and must not be rewritten as if they were. This plan changes where frame side effects
@@ -67,9 +67,9 @@ This repository has:
 - no `[patch]` section, no `vendor/` directory, no source replacement and no local crate copy;
   `.cargo/config.toml` contains only the `xtask` alias;
 - exactly four manifests that mention `egui`: the workspace, `crates/ui-egui/Cargo.toml`,
-  `apps/filmcraft/Cargo.toml` and `apps/filmcraft-web/Cargo.toml`;
-- a native entry point (`apps/filmcraft/src/main.rs`), a wasm entry point
-  (`apps/filmcraft-web/src/lib.rs`), a CLI app and a web app;
+  `apps/toma/Cargo.toml` and `apps/toma-web/Cargo.toml`;
+- a native entry point (`apps/toma/src/main.rs`), a wasm entry point
+  (`apps/toma-web/src/lib.rs`), a CLI app and a web app;
 - no `egui_plot`, `egui_extras` or `egui_dock`; all other crate manifests scanned for `egui`,
   `eframe`, `winit`, `rfd` and `egui_*` contain none;
 - `crates/ui-egui/Cargo.toml` has the only relevant target cfgs: `rustix` for Unix
@@ -80,15 +80,15 @@ This repository has:
 ### 1.1 Reverse dependency: Pulso
 
 Pulso (`9581b53c3f8945683252af0eb5fac79e0e43aed4` in the owned checkout) pins fifteen
-`filmcraft-*` crates to `2c5ba7a72619935f0481f99d59409e0d1844b234` in `effectcraft/Cargo.toml`.
+`toma-*` crates to `2c5ba7a72619935f0481f99d59409e0d1844b234` in `effectcraft/Cargo.toml`.
 That revision is not an ancestor of Toma baseline `abf44fda`; it is reachable from
 `origin/effectcraft/webm-alpha`. None of those crates (`media`, `codecs`, `frame`, `color`,
 `time`, `project`, `interchange`, `geom`, the encoders/decoders and the muxer) contains
-`egui`, and Pulso does not depend on `filmcraft-ui-egui`.
+`egui`, and Pulso does not depend on `toma-ui-egui`.
 
 Decision: Pulso needs no change for this migration. Retain its separate branch pin.
 Re-audit only if (a) the pin moves to Toma main or another revision that changes a
-shared public type, or (b) Pulso starts consuming `filmcraft-ui-egui` (directly or
+shared public type, or (b) Pulso starts consuming `toma-ui-egui` (directly or
 through another crate). The re-audit must check the actual Cargo identities, not just a
 version string. This is the required explicit cross-repository check; it is not a silent
 deferral of Toma's own compatibility work.
@@ -99,20 +99,20 @@ deferral of Toma's own compatibility work.
 
 | Target | Entry point / symbol | Notes |
 |---|---|---|
-| Native desktop | `apps/filmcraft/src/main.rs:80` `main`, `:139` `eframe::run_native`, `:168` `native_options`, `:190` `app_creator` | wgpu only; features `default_fonts`, `wgpu`, `accesskit`, `wayland`, `x11`; no `system_fonts`, no `links` |
-| macOS native | `apps/filmcraft/Cargo.toml` target deps `muda`, `objc2-*`, `winit`; `main.rs:430` `agent_event_loop`; `native_menu.rs` | custom titlebar and menu; `--control` must not activate the app |
-| Linux native | `apps/filmcraft/Cargo.toml` `zbus`; `main.rs` `run_dialog_off_thread` | X11 and Wayland at runtime; XDG portal dialogs |
-| Windows native | `apps/filmcraft/Cargo.toml` `winresource`; `graphics.rs` DX12/default/software ladder | DX12 FXC shader compilation is relevant to startup measurement |
-| Browser | `apps/filmcraft-web/src/lib.rs:125` `start`, `:156` `WebRunner::start`, `:92` `impl eframe::App for WebApp` | wasm32 only; WebGPU with WebGL2 fallback; WebCodecs; OPFS |
-| Headless UI | `crates/ui-egui/tests/scripted.rs` and the other `tests/*_ui.rs` `Harness::builder().build_eframe(...)` | `egui_kittest` drives the same `FilmcraftApp` |
+| Native desktop | `apps/toma/src/main.rs:80` `main`, `:139` `eframe::run_native`, `:168` `native_options`, `:190` `app_creator` | wgpu only; features `default_fonts`, `wgpu`, `accesskit`, `wayland`, `x11`; no `system_fonts`, no `links` |
+| macOS native | `apps/toma/Cargo.toml` target deps `muda`, `objc2-*`, `winit`; `main.rs:430` `agent_event_loop`; `native_menu.rs` | custom titlebar and menu; `--control` must not activate the app |
+| Linux native | `apps/toma/Cargo.toml` `zbus`; `main.rs` `run_dialog_off_thread` | X11 and Wayland at runtime; XDG portal dialogs |
+| Windows native | `apps/toma/Cargo.toml` `winresource`; `graphics.rs` DX12/default/software ladder | DX12 FXC shader compilation is relevant to startup measurement |
+| Browser | `apps/toma-web/src/lib.rs:125` `start`, `:156` `WebRunner::start`, `:92` `impl eframe::App for WebApp` | wasm32 only; WebGPU with WebGL2 fallback; WebCodecs; OPFS |
+| Headless UI | `crates/ui-egui/tests/scripted.rs` and the other `tests/*_ui.rs` `Harness::builder().build_eframe(...)` | `egui_kittest` drives the same `TomaApp` |
 
 ### 2.2 The app object
 
-`FilmcraftApp` is in `crates/ui-egui/src/lib.rs`. The UI code is already split:
+`TomaApp` is in `crates/ui-egui/src/lib.rs`. The UI code is already split:
 
-- `crates/ui-egui/src/lib.rs:2133` `impl eframe::App for FilmcraftApp::logic`;
-- `crates/ui-egui/src/lib.rs:2193` `impl eframe::App for FilmcraftApp::ui`;
-- `crates/ui-egui/src/lib.rs:1807` private `FilmcraftApp::frame(&mut self, ui: &mut egui::Ui)`,
+- `crates/ui-egui/src/lib.rs:2133` `impl eframe::App for TomaApp::logic`;
+- `crates/ui-egui/src/lib.rs:2193` `impl eframe::App for TomaApp::ui`;
+- `crates/ui-egui/src/lib.rs:1807` private `TomaApp::frame(&mut self, ui: &mut egui::Ui)`,
   called from `App::ui` and wrapped in `catch_unwind`;
 - `cargo xtask` only builds/tests; Toma does not implement a second `update` path;
 - the main workspace is custom-drawn: `App::ui` receives the root `Ui`, then calls
@@ -307,7 +307,7 @@ All fourteen capture consumers adopt this contract. The eleven apps that already
 Lienzo, SoundCraft, Pluma and Letra) import the helper from the published
 revision that contains both CL-1 and CL-2F in the same atomic dependency stage. Pliego
 and Celdas are the pilot adapters against the reviewed CL-2 provisional revision before
-CL-2F freezes the API. Lámina, FigCraft and ArtCraft Native do not declare `craft-ui`;
+CL-2F freezes the API. Lámina, FigCraft and Nodalia Native do not declare `craft-ui`;
 they use contract-compatible local adapters unless they choose to add the dependency. Any
 consumer that already carries an incompatible `craft-ui` bump must reconcile it in that same
 atomic dependency stage, not a separate registry-only state. The earlier "thirteen `craft-ui`
@@ -375,12 +375,12 @@ The current feature lists are explicit. Migrate to 0.37 with these decisions:
 
 - workspace `egui`: `default-features = false` and features `["default_fonts",
   "monochrome_emoji_fonts"]`;
-- native `apps/filmcraft`: keep `default_fonts`, `wgpu`, `accesskit`, `wayland`, `x11`, and
+- native `apps/toma`: keep `default_fonts`, `wgpu`, `accesskit`, `wayland`, `x11`, and
   **add `clipboard`**. Without `clipboard`, eframe 0.37's `egui-winit` uses the in-app
   fallback clipboard, so cross-application text copy/paste silently stops working;
 - `crates/ui-egui`: keep `default_fonts`, `wgpu`, `accesskit`; the native app root is
   authoritative for OS clipboard;
-- web `apps/filmcraft-web`: keep `default_fonts`, `wgpu`; the eframe `clipboard` feature is
+- web `apps/toma-web`: keep `default_fonts`, `wgpu`; the eframe `clipboard` feature is
   native (`egui-winit`) and is not added to wasm. Verify browser clipboard behavior in the
   browser workflow instead;
 - do **not** add `system_fonts`; do **not** add `links` or `web_screen_reader` by accident.
@@ -401,8 +401,8 @@ explicitly or install controlled fonts (§11.1).
 
 ### 4.1 Rule: logic is idempotent background; UI is composition; input is pass-0 only
 
-Introduce private `FilmcraftApp::run_logic_frame(&mut self, ctx: &egui::Context)` and
-`FilmcraftApp::run_ui_frame(&mut self, ui: &mut egui::Ui)`:
+Introduce private `TomaApp::run_logic_frame(&mut self, ctx: &egui::Context)` and
+`TomaApp::run_ui_frame(&mut self, ui: &mut egui::Ui)`:
 
 - `App::logic` runs `run_logic_frame` on **every** call. Under this pinned eframe/egui
   integration, native and web call `App::logic` once per `run_ui` layout pass, and also call
@@ -425,7 +425,7 @@ Introduce private `FilmcraftApp::run_logic_frame(&mut self, ctx: &egui::Context)
   `ui_error`, stops playback and does not re-run the same panicking code every tick or
   re-log it every pass. `run_ui_frame` keeps its catch around `frame(ui)` and the graphics
   notice.
-- `on_exit` stays in `FilmcraftApp` and calls `session.shutdown()` exactly once.
+- `on_exit` stays in `TomaApp` and calls `session.shutdown()` exactly once.
 
 No `ui_pass`/`hidden_tick` predicate based on `viewport.visible()` is used. Visibility is
 used only for presentation policy (for example whether a hidden window should be raised),
@@ -560,7 +560,7 @@ Hidden-window semantics are the 0.37 behavior, not the old assumption:
   idempotent.
 - `playback_mix` remains the live project snapshot; audio callbacks are outside egui. Logic
   keeps polling `audio.played_frames()` while hidden.
-- `FilmcraftApp::frames.pump` moves from `App::ui` to logic. The web runner's `WebApp::logic`
+- `TomaApp::frames.pump` moves from `App::ui` to logic. The web runner's `WebApp::logic`
   also pumps jobs/audio; its per-frame work must be idempotent because web calls logic per
   pass.
 - Auto-save: `Session::poll_persistence` and `session.is_dirty` move to logic; the recovery
@@ -741,7 +741,7 @@ has it. This is a source-level decision; no visible GUI comparison has been reco
 it remains part of the visible-GUI acceptance gate below.
 
 `FontData` construction is §5.1. Keep the process-wide caches (`OnceLock`) and the single
-system scan; do not call `filmcraft_text::fonts::scan_system()` in a UI pass.
+system scan; do not call `toma_text::fonts::scan_system()` in a UI pass.
 
 `eframe` 0.37 adds an optional `system_fonts` feature (fontique provider, #8512) and a
 `system_font_fallback` option. **Do not enable it in the migration.** It changes startup cost
@@ -940,7 +940,7 @@ W15P:
   regular `wl_data_device`.
 - Egui 0.37 `get_primary`/`set_primary` routes through that path. E4 preserves password
   exclusion and does not reclaim ownership for an unchanged selection.
-- Toma also uses `arboard` directly for files/images (`apps/filmcraft/src/main.rs`
+- Toma also uses `arboard` directly for files/images (`apps/toma/src/main.rs`
   `clipboard_media`). The arboard/smithay PRIMARY path is a measured fallback only if the
   winit path cannot meet a proven requirement; it is not the planned end state and it is not
   accepted merely by documenting a GNOME limitation.
@@ -990,7 +990,7 @@ with supported capabilities recorded:
   `RequestPaintWhileHidden` for hidden composition stages. `ui.resize` and `ui.focus`
   control methods keep their behavior; `control_input_only` must still preserve close and
   viewport lifecycle metadata.
-- GPU: `FilmcraftApp::set_wgpu` receives `CreationContext::wgpu_render_state`;
+- GPU: `TomaApp::set_wgpu` receives `CreationContext::wgpu_render_state`;
   `TextureHandle` and `GpuState`/`uploadedBytes` remain. `egui-wgpu` fork E2/E3 add surface
   fitting and error scopes; they are relevant to large/odd windows. Do not change the
   Toma `wgpu 30.0.1` pin or the GPU compositor in the migration PR. The candidate’s own
@@ -1091,18 +1091,18 @@ planning pass. Capacity must be inspected first; the suite snapshot had less tha
 
 ```sh
 python3 /home/codex/work/maintenance/task.py run \
-  --job-id filmcraft-egui037-ci-01 --kind build \
-  --task filmcraft-egui037-migration \
-  --source /home/codex/work/CraftApps/egui037-migration-20261022/filmcraft-implementation \
-  --evidence /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/filmcraft \
+  --job-id toma-egui037-ci-01 --kind build \
+  --task toma-egui037-migration \
+  --source /home/codex/work/CraftApps/egui037-migration-20261022/toma-implementation \
+  --evidence /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/toma \
   -- cargo xtask ci
-python3 /home/codex/work/maintenance/task.py status filmcraft-egui037-ci-01 --tail-bytes 8192
-python3 /home/codex/work/maintenance/task.py finish filmcraft-egui037-ci-01 --artifact-manifest /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/filmcraft/artifacts.json
+python3 /home/codex/work/maintenance/task.py status toma-egui037-ci-01 --tail-bytes 8192
+python3 /home/codex/work/maintenance/task.py finish toma-egui037-ci-01 --artifact-manifest /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/toma/artifacts.json
 # after inspecting the plan and preserving evidence:
-python3 /home/codex/work/maintenance/task.py finish filmcraft-egui037-ci-01 \
-  --artifact-manifest /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/filmcraft/artifacts.json \
+python3 /home/codex/work/maintenance/task.py finish toma-egui037-ci-01 \
+  --artifact-manifest /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/toma/artifacts.json \
   --apply --owner-confirmed --checks-complete --evidence-preserved
-python3 /home/codex/work/maintenance/task.py status filmcraft-egui037-ci-01 --tail-bytes 8192
+python3 /home/codex/work/maintenance/task.py status toma-egui037-ci-01 --tail-bytes 8192
 ```
 
 Every job uses one unique resource task/fresh job ID/`--source`/`--evidence`; poll `status`
@@ -1116,7 +1116,7 @@ default CI:
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo test --workspace`, `cargo xtask layers`, `cargo xtask assets`, `cargo xtask wasm`;
 - with and without `CRAFT_FONTS_DIR` (pinned craft-fonts `abb83316d96aa59c1cf64784289e378fe9fa5695`);
-- `FILMCRAFT_REQUIRE_ORACLES=1` when ffmpeg is available;
+- `TOMA_REQUIRE_ORACLES=1` when ffmpeg is available;
 - `cargo metadata --locked`, the graph checks from §3.4, and the native `clipboard` +
   `monochrome_emoji_fonts` feature assertions.
 
@@ -1222,21 +1222,21 @@ Native Linux (proposed, through the managed adapter; no raw `cargo run` outside 
 
 ```sh
 python3 /home/codex/work/maintenance/task.py run \
-  --job-id filmcraft-egui037-linux-ui-01 --kind build \
-  --task filmcraft-egui037-migration \
-  --source /home/codex/work/CraftApps/egui037-migration-20261022/filmcraft-implementation \
-  --evidence /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/filmcraft \
-  -- cargo run --release -p filmcraft -- --control 9876
-python3 /home/codex/work/maintenance/task.py status filmcraft-egui037-linux-ui-01 --tail-bytes 8192
+  --job-id toma-egui037-linux-ui-01 --kind build \
+  --task toma-egui037-migration \
+  --source /home/codex/work/CraftApps/egui037-migration-20261022/toma-implementation \
+  --evidence /home/codex/work/ssd2/task-evidence/egui037-migration-20261022/toma \
+  -- cargo run --release -p toma -- --control 9876
+python3 /home/codex/work/maintenance/task.py status toma-egui037-linux-ui-01 --tail-bytes 8192
 # after the UI workflow, evidence capture and review:
-python3 /home/codex/work/maintenance/task.py finish filmcraft-egui037-linux-ui-01 \
+python3 /home/codex/work/maintenance/task.py finish toma-egui037-linux-ui-01 \
   --apply --owner-confirmed --checks-complete --evidence-preserved
-python3 /home/codex/work/maintenance/task.py status filmcraft-egui037-linux-ui-01 --tail-bytes 8192
+python3 /home/codex/work/maintenance/task.py status toma-egui037-linux-ui-01 --tail-bytes 8192
 ```
 
 Drive `ui.inspect`, `ui.screenshot`, `ui.resize`, dock actions, clipboard/PRIMARY, and review
 every PNG. Repeat under X11 and Wayland (and Hyprland for E4/W15P). Native Windows through a
-uniquely owned clone: build the task checkout, run `filmcraft-ui-egui` UI tests, launch with
+uniquely owned clone: build the task checkout, run `toma-ui-egui` UI tests, launch with
 `--control`, capture screenshots, exercise IME and DX12/software graphics modes. macOS: real
 hardware for Cmd shortcuts, titlebar drag, Japanese/Korean IME and header drag; if no Mac is
 available, record macOS as unresolved, not passed.
@@ -1251,11 +1251,11 @@ cargo xtask web --serve 8765 &
 SERVER=$!
 trap 'kill "$SERVER" 2>/dev/null' EXIT
 ffmpeg -f lavfi -i testsrc2=size=640x360:rate=30 -f lavfi -i sine -t 3 -c:v libx264 -pix_fmt yuv420p -c:a aac target/web/dist/web-test.mp4
-node apps/filmcraft-web/tests/smoke.mjs --url http://127.0.0.1:8765/ --media web-test.mp4 --out target/web/smoke
+node apps/toma-web/tests/smoke.mjs --url http://127.0.0.1:8765/ --media web-test.mp4 --out target/web/smoke
 ```
 
 Run WebGPU and `?webgl`; inspect `report.json` and steps `01-demo` … `05-modes`; check
-`filmcraft.info()` for backend/compositor. A wasm compile is not runtime evidence; headless
+`toma.info()` for backend/compositor. A wasm compile is not runtime evidence; headless
 browser tests do not prove native focus/IME/file pickers.
 
 ### 11.5 Environment provisioning gates
@@ -1281,12 +1281,12 @@ a current runtime pass, or a platform gate as satisfied from source inspection a
 Record before changing production code, on the exact baseline SHA and lockfile, as managed
 `task.py run` jobs (fresh job ID, exact `--source`/`--evidence`, `status`, then attested
 `finish --apply`). Submit each payload as
-`task.py run --job-id <unique> --kind build --task filmcraft-egui037-migration --source
+`task.py run --job-id <unique> --kind build --task toma-egui037-migration --source
 <checkout> --evidence <evidence> -- <payload>`; the commands below are payloads, not a
 raw-command exception:
 
 - `cargo xtask bench` with `--sections timeline,playback,scrub`, `--label
-  filmcraft-egui036-baseline`; GPU and `--cpu` runs. The timeline harness currently defaults
+  toma-egui036-baseline`; GPU and `--cpu` runs. The timeline harness currently defaults
   to 120 frames per view, 8 warmups (the `--repeat` value is a **run count**, not a sample
   count) and emits only p50/p95, so extend `crates/ui-egui/examples/bench/sections.rs` to
   accept the frame/warmup counts and emit p99 with exact sample counts **before** using it as
@@ -1408,7 +1408,7 @@ uses the preserved baseline executable/source and a separate managed allocation.
 - `.github/workflows/ci.yml` runs `cargo xtask ci` with pinned `CRAFT_FONTS_REF`; add the pin
   checks from §3.4 and a `cargo metadata --locked` step.
 - Keep `freebsd.yml`’s skip-tests policy and `windows-arm64.yml` as-is; do not weaken them.
-- `cargo xtask wasm` must still check `filmcraft-ui-egui` and `filmcraft-web`; `egui_kittest`
+- `cargo xtask wasm` must still check `toma-ui-egui` and `toma-web`; `egui_kittest`
   is a dev dependency and remains native-only.
 - The web crate’s `wasm-bindgen` exact pin (`=0.2.129`) must match the installed CLI. The
   candidate’s own lock uses `wasm-bindgen 0.2.126` and `web-sys 0.3.103`; Toma currently
@@ -1557,7 +1557,7 @@ This table is an index; the body sections above are authoritative.
 - IME gap: `/home/codex/work/ssd2/task-evidence/egui037-migration-20261022/ime-surrounding-gap.md`,
   `.../winit-review-triage.md` for the W15P/W27/E21b serial and owner/support corrections, and
   egui plan §10.6 for pinned font fixtures.
-- Shared baseline audit: `/home/codex/work/ssd2/task-evidence/egui037-migration-20261022/filmcraft-shared-baseline-audit.md`.
+- Shared baseline audit: `/home/codex/work/ssd2/task-evidence/egui037-migration-20261022/toma-shared-baseline-audit.md`.
 - Suite rollout: `craft-libs/docs/egui-037-suite-rollout.md` and
   `craft-libs/docs/egui-037-migration-plan.md` (CL-2/CL-2F, §7.8, §10.6).
 - Fork provenance: `aiongg/egui` `craft/0.37` `PATCHES.md` (E1-E21) and `aiongg/winit`
@@ -1590,7 +1590,7 @@ The complete static delta review and exact old/new object identities are retaine
 ## Final source review repair — 2026-10-24
 
 The reviewed cumulative source identity and two findings are preserved in the external
-`final-landing/filmcraft-final-review.md/json` evidence. Same-owner application caret/selection
+`final-landing/toma-final-review.md/json` evidence. Same-owner application caret/selection
 moves (pointer, keyboard, Select All and explicit gfxEdit offsets) and another field taking
 focus now invalidate only a known active/terminal-pending graphics composition before its late
 replacement can mutate the moved selection. Stable owner/generation identity is preserved;

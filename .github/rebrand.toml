@@ -1,0 +1,140 @@
+# What `scripts/rebrand.py` renames: upstream's FilmCraft becomes Toma, in file contents and in
+# paths. The weekly upstream sync applies the same rules to upstream's tree before merging it, so
+# a rule added here applies to everything upstream sends from then on.
+#
+# Replacements are literal and case-sensitive, applied in order: put the longer, more specific
+# ones first. Keep spans are found before any replacement, so a replacement never reaches inside
+# one.
+
+# Left as they are wherever they appear (in file contents and in paths).
+keep = [
+    # Links to upstream's issues, pull requests and commits, and to other people's repositories:
+    # history, not branding. Links to upstream's tree and repository page are renamed below.
+    "(https?://)?github\\.com/storytold/[\\w.-]+/(issues|pull|commit|discussions)/[^\\s)\\]\"'<>`]*",
+    "https?://(github\\.com|raw\\.githubusercontent\\.com)/(?!storytold/filmcraft\\b|getnodalia|danielmigueltejedor)[^\\s)\\]\"'<>`]*",
+    # Upstream's issues named without a link (`storytold/filmcraft#123`, `artcraft#2093`).
+    "storytold/[\\w.-]+#\\d+",
+    "\\b[a-z]+craft#\\d+",
+    # Repositories named without a link: upstream's siblings and the shared test corpus.
+    "storytold/(photocraft|vectorcraft|effectcraft)\\b",
+    "photocraft-corpus",
+    # Upstream's repository in the sync workflow and in the record of what came from it.
+    "(?<=UPSTREAM_REPO: )storytold/filmcraft",
+    # File signatures: projects, presets and templates saved by FilmCraft keep opening, and the
+    # files Toma writes stay readable by it (`"format": "filmcraft.project"` and its siblings).
+    "filmcraft(?=\\.(project|effect-presets|export-presets|effect-preset-library|graphicsTemplate)\\b)",
+    # Toma's own data inside interchange files (OTIO metadata, FCPXML effect ids), found by name
+    # in files exported before the rename too.
+    "(?<=\\{\")filmcraft(?=\":)",
+    "(?<=\\[\")filmcraft(?=\"\\])",
+    "(?<=get\\(\")filmcraft(?=\"\\))",
+    "(?<=uid=\\\\\")filmcraft(?=\\.)",
+    "(?<=strip_prefix\\(\")filmcraft(?=:)",
+    "(?<=format!\\(\")filmcraft(?=:\\{)",
+    "metadata\\.filmcraft\\b",
+    "filmcraft(?=\\.clip\\b)",
+    "(?<=`)filmcraft(?=` metadata)",
+    # Credit for work done upstream.
+    "FilmCraft contributors",
+    "ArtCraft Team",
+]
+
+# Files left alone entirely.
+skip = [
+    ".github/rebrand.toml",
+    "scripts/rebrand.py",
+    # Licence notices keep upstream's copyright line, which the licences require.
+    "NOTICE",
+    "LICENSE-*",
+    "licenses/*",
+    # The record of what came from upstream, and upstream's own README kept for reference.
+    "docs/upstream.md",
+    "docs/upstream-readme.md",
+    # Upstream's brand marks, kept only under their own licence and attribution.
+    "docs/brand/*",
+]
+
+# Run after renaming: shorter names change how rustfmt wraps lines and sorts imports.
+after = [["cargo", "fmt", "--all"]]
+
+# Lines that keep this app's value when upstream's tree is rebranded (the sync passes --pin-from).
+[[pin]]
+file = "Cargo.toml"
+pattern = '^version = "[^"]*"'
+
+# Identity: app id, publisher, installer identities (a product of its own, never FilmCraft's).
+[[replace]]
+from = "ai.storyteller.filmcraft"
+to = "dev.danielmiguelt.Toma"
+
+[[replace]]
+from = "FilmCraft maintainers <filmcraft@storyteller.ai>"
+to = "Nodalia <https://github.com/getnodalia/toma/issues>"
+
+[[replace]]
+from = "Learning Machines LLC"
+to = "Nodalia"
+
+[[replace]]
+from = "31E6FB14-9DBC-41DD-B24B-26B71FB31B62"
+to = "91AEDAB0-A090-4A19-9E97-4B7D2BCBDF6B"
+
+[[replace]]
+from = "15933017-925B-4963-8992-52000EB26AAA"
+to = "BC84DA01-4D9E-43C5-AA66-42B858CE69E4"
+
+# Where the app lives: its repository, releases, container images and web page.
+[[replace]]
+from = "ghcr.io/storytold/filmcraft"
+to = "ghcr.io/getnodalia/toma"
+
+[[replace]]
+from = "storytold/filmcraft"
+to = "getnodalia/toma"
+
+[[replace]]
+from = "https://discord.gg/artcraft"
+to = "https://github.com/getnodalia/toma/issues"
+
+[[replace]]
+from = "getartcraft.com/apps/filmcraft"
+to = "getnodalia.com/toma"
+
+[[replace]]
+from = "getartcraft.com"
+to = "getnodalia.com"
+
+# Toma's siblings, named by their upstream names.
+[[replace]]
+from = "PhotoCraft"
+to = "Lienzo"
+
+[[replace]]
+from = "VectorCraft"
+to = "Pluma"
+
+[[replace]]
+from = "EffectCraft"
+to = "Pulso"
+
+# The family the app belongs to: install folders, the About box.
+[[replace]]
+from = "ArtCraft"
+to = "Nodalia"
+
+# The name, in every casing upstream uses.
+[[replace]]
+from = "FilmCraft"
+to = "Toma"
+
+[[replace]]
+from = "Filmcraft"
+to = "Toma"
+
+[[replace]]
+from = "filmcraft"
+to = "toma"
+
+[[replace]]
+from = "FILMCRAFT"
+to = "TOMA"
