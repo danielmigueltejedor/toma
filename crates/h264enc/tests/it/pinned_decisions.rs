@@ -1,6 +1,7 @@
 //! The encoder's decisions are pinned: the coded slices of synthetic clips hash to fixed values,
 //! so a change that alters any decision (a mode, a motion vector, a quantiser), and not only one
 //! that breaks decoding, fails here. Only slice NAL units are hashed: the SEI names the version.
+//! VBR and CBR still count the SEI's bits, so renaming the encoder in it moves their hashes.
 
 use crate::common::{annexb_nals, synth};
 use toma_h264enc::*;
@@ -45,9 +46,9 @@ fn cfg(profile: Profile, preset: Preset, rate: RateControl) -> EncoderConfig {
 fn coded_slices_are_pinned() {
     let cases = [
         ("high balanced crf", cfg(Profile::High, Preset::Balanced, RateControl::Crf(23.0)), 0x6223_db82_41eb_7da1u64),
-        ("high quality vbr", cfg(Profile::High, Preset::Quality, RateControl::Vbr { target_kbps: 800, max_kbps: 1200 }), 0x721d_6e68_3f96_5bf1),
+        ("high quality vbr", cfg(Profile::High, Preset::Quality, RateControl::Vbr { target_kbps: 800, max_kbps: 1200 }), 0x2386_a2c5_a088_979d),
         ("main speed qp", cfg(Profile::Main, Preset::Speed, RateControl::Qp(30)), 0x7772_91d5_4c75_c320),
-        ("baseline balanced cbr", cfg(Profile::Baseline, Preset::Balanced, RateControl::Cbr { kbps: 600 }), 0x72ff_5e78_a3f0_e46e),
+        ("baseline balanced cbr", cfg(Profile::Baseline, Preset::Balanced, RateControl::Cbr { kbps: 600 }), 0xaf7f_0127_69f1_10a7),
     ];
     let got: Vec<u64> = cases.iter().map(|(_, c, _)| slices_hash(c.clone(), 20)).collect();
     for ((name, _, _), got) in cases.iter().zip(&got) {
