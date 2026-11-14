@@ -92,8 +92,6 @@ sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$TOMA_BUILD_DATE/g" \
   "$LINUX/$APP_ID.metainfo.xml.in" >"$STAGE/share/metainfo/$APP_ID.metainfo.xml"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/share/icons/"
 
-# The .desktop names the icon dev.danielmiguelt.Toma (the Nodalia name); install it under that name too.
-for f in "$STAGE"/share/icons/hicolor/*/apps/"$APP_ID".{png,svg}; do cp "$f" "${f%/*}/dev.danielmiguelt.Toma.${f##*.}"; done
 copy_docs "$STAGE/share/doc/toma"
 for f in NOTICE ATTRIBUTION.md; do
   if [[ -f "$ROOT/$f" ]]; then install -m 644 "$ROOT/$f" "$STAGE/share/doc/toma/"; fi

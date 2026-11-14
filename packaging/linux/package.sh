@@ -70,9 +70,6 @@ sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$TOMA_BUILD_DATE/g" \
 mkdir -p "$STAGE/usr/share/icons"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/usr/share/icons/"
 
-# The .desktop names the icon dev.danielmiguelt.Toma, the Nodalia name, so an icon theme can
-# tell this app from the Craft app that shares its ID.
-for f in "$STAGE"/usr/share/icons/hicolor/*/apps/"$APP_ID".{png,svg}; do cp "$f" "${f%/*}/dev.danielmiguelt.Toma.${f##*.}"; done
 mkdir -p "$STAGE/usr/share/doc/toma"
 copy_docs "$STAGE/usr/share/doc/toma"
 
