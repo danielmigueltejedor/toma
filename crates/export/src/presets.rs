@@ -1,9 +1,9 @@
-//! Built-in export presets. These are FilmCraft's own functional definitions (names, sizes and
+//! Built-in export presets. These are Toma's own functional definitions (names, sizes and
 //! bitrates chosen by us for common delivery targets); no preset files from any other product are
 //! used. User presets live in the engine (`<data dir>/export-presets.json`).
 
-use filmcraft_time::FrameRate;
 use serde::{Deserialize, Serialize};
+use toma_time::FrameRate;
 
 use crate::settings::{AudioCodec, AudioSettings, BitrateMode, ExportEffects, H264Profile, LoudnessNormalization, MxfVideoCodec, Scaling};
 use crate::{ExportSettings, Format};

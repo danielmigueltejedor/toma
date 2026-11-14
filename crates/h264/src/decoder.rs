@@ -14,10 +14,10 @@ use crate::slice::{NalHeader, Poc, PocState, SliceHeader, SliceType, is_new_pict
 use crate::slicedec::{PicState, SliceDecoder};
 use crate::transform::LevelScale;
 use crate::{ColorInfo, Picture};
-use filmcraft_bitstream::{BitReader, annexb_nals, length_prefixed_nals, unescape_rbsp};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use toma_bitstream::{BitReader, annexb_nals, length_prefixed_nals, unescape_rbsp};
 
 /// Most pictures one `decode` call may start: a chunk is an access unit, or a few in a transport
 /// stream packet. Each picture is a full frame, and small slices make them cheap to ask for.

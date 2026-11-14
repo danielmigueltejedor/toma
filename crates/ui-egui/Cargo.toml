@@ -1,6 +1,6 @@
 [package]
-name = "filmcraft-ui-egui"
-description = "The FilmCraft egui frontend (swappable): panels, docking, timeline, monitors, control channel"
+name = "toma-ui-egui"
+description = "The Toma egui frontend (swappable): panels, docking, timeline, monitors, control channel"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,22 +11,22 @@ workspace = true
 
 [dependencies]
 craft-ui = { workspace = true }
-filmcraft-time = { workspace = true }
-filmcraft-geom = { workspace = true }
-filmcraft-color = { workspace = true }
-filmcraft-frame = { workspace = true }
-filmcraft-media = { workspace = true }
-filmcraft-project = { workspace = true }
-filmcraft-tts = { workspace = true }
-filmcraft-edit = { workspace = true }
-filmcraft-render = { workspace = true }
-filmcraft-text = { workspace = true }
-filmcraft-captions = { workspace = true }
-filmcraft-audio-dsp = { workspace = true }
-filmcraft-engine = { workspace = true }
-filmcraft-export = { workspace = true }
-filmcraft-gpu = { workspace = true }
-filmcraft-scopes = { workspace = true }
+toma-time = { workspace = true }
+toma-geom = { workspace = true }
+toma-color = { workspace = true }
+toma-frame = { workspace = true }
+toma-media = { workspace = true }
+toma-project = { workspace = true }
+toma-tts = { workspace = true }
+toma-edit = { workspace = true }
+toma-render = { workspace = true }
+toma-text = { workspace = true }
+toma-captions = { workspace = true }
+toma-audio-dsp = { workspace = true }
+toma-engine = { workspace = true }
+toma-export = { workspace = true }
+toma-gpu = { workspace = true }
+toma-scopes = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "clipboard"] }
@@ -37,7 +37,7 @@ rayon = { workspace = true }
 web-time = "1"
 # Unicode Bidirectional Algorithm for Arabic and Hebrew captions in reading order (MIT OR Apache-2.0).
 unicode-bidi = "0.3.18"
-# ArtCraft wordmark (PNG) for the About dialog and Home screen.
+# Nodalia wordmark (PNG) for the About dialog and Home screen.
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 # Thread/process CPU clocks for frame-job profiling (safe wrappers; see frames.rs).
@@ -49,12 +49,12 @@ cpu-time = "1"
 
 [dev-dependencies]
 pollster = "1"
-filmcraft-audio-dsp = { workspace = true, features = ["test-util"] }
-filmcraft-codecs = { workspace = true }
+toma-audio-dsp = { workspace = true, features = ["test-util"] }
+toma-codecs = { workspace = true }
 # the bench registers OS hardware decoders as the desktop app does (dev-dependency only: ui-egui
 # itself stays OS-independent and web-portable)
-filmcraft-platform = { workspace = true }
-filmcraft-interchange = { workspace = true }
+toma-platform = { workspace = true }
+toma-interchange = { workspace = true }
 # A dependency's dev-dependencies do not propagate through egui_kittest: name the fonts this
 # test root needs explicitly so glyph and accessibility assertions run against the bundled faces.
 egui = { workspace = true, features = ["default_fonts", "monochrome_emoji_fonts"] }

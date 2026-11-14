@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <?ifndef HasCraftFontLicences ?>
+  <?define HasCraftFontLicences=0 ?>
+  <?endif?>
+  <Package Name="Toma" Manufacturer="Nodalia" Version="$(var.Version)" UpgradeCode="91AEDAB0-A090-4A19-9E97-4B7D2BCBDF6B" Scope="perUserOrMachine" Compressed="yes" Language="1033">
+    <SummaryInformation Description="Toma video editor" Manufacturer="Nodalia" />
+    <?include $(sys.SOURCEFILEDIR)install-policy.wxi?>
+    <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
+         (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of Toma is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="TomaIcon.ico" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="TomaIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://getnodalia.com/toma" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://getnodalia.com/toma" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/getnodalia/toma/issues" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="CraftSuiteFolder" Name="Nodalia">
+        <Directory Id="INSTALLFOLDER" Name="Toma" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="Toma" Level="1">
+      <?if $(var.HasCraftFontLicences) = 1 ?>
+      <ComponentGroupRef Id="CraftFontLicences" />
+      <?endif?>
+      <ComponentGroupRef Id="TomaFiles" />
+    </Feature>
+  <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UI>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="NOT Installed" />
+    </UI>
+  </Package>
+
+  <Fragment>
+    <?if $(var.HasCraftFontLicences) = 1 ?>
+    <ComponentGroup Id="CraftFontLicences" Directory="INSTALLFOLDER">
+      <Files Include="$(var.DocsDir)\**" />
+    </ComponentGroup>
+    <?endif?>
+    <ComponentGroup Id="TomaFiles" Directory="INSTALLFOLDER">
+      <Component Id="TomaApp" Guid="BC84DA01-4D9E-43C5-AA66-42B858CE69E4">
+        <File Id="TomaNotice" Source="$(var.BinDir)\NOTICE" KeyPath="no" />
+        <File Id="TomaExe" Source="$(var.BinDir)\toma.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Toma" Description="Toma video editor" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="TomaIcon.ico" IconIndex="0" />
+        </File>
+
+        <RegistryValue Root="HKMU" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\toma.exe" Value="[#TomaExe]" Type="string" />
+      <RegistryValue Root="HKMU" Key="Software\Toma" Name="InstallDir" Value="[INSTALLFOLDER]" Type="string" />
+      </Component>
+
+      <Component Id="TomaCli">
+        <File Id="TomaCliExe" Source="$(var.BinDir)\toma-cli.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

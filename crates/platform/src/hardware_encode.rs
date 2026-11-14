@@ -1,4 +1,4 @@
-//! The VideoToolbox H.264 and HEVC encoders behind `filmcraft_export::VideoEncoder` (macOS; safe code
+//! The VideoToolbox H.264 and HEVC encoders behind `toma_export::VideoEncoder` (macOS; safe code
 //! around [`crate::videotoolbox_encode`]).
 //!
 //! H.264 hardware encoding is opt-in per export (`ExportSettings::hardware_encoding`, `Auto`): its output
@@ -15,9 +15,9 @@
 
 use std::sync::{Once, OnceLock};
 
-use filmcraft_export::{BitrateMode, EncodedPacket, EncoderFrame, ExportError, ExportSettings, Format, H264Pass, H264Profile, HardwareEncoding, VideoEncoder};
-use filmcraft_isobmff::{AvcConfig, HevcConfig, SampleEntry};
-use filmcraft_time::FrameRate;
+use toma_export::{BitrateMode, EncodedPacket, EncoderFrame, ExportError, ExportSettings, Format, H264Pass, H264Profile, HardwareEncoding, VideoEncoder};
+use toma_isobmff::{AvcConfig, HevcConfig, SampleEntry};
+use toma_time::FrameRate;
 
 use crate::videotoolbox_encode::{ParamSets, VtCodec, VtConfig, VtEncoder, VtInput, VtPacket, VtProfile, VtRate};
 
@@ -110,7 +110,7 @@ pub fn hevc_probed() -> bool {
 pub fn warm_hevc_probe() {
     static STARTED: Once = Once::new();
     STARTED.call_once(|| {
-        let spawned = std::thread::Builder::new().name("filmcraft-hevc-probe".into()).spawn(|| {
+        let spawned = std::thread::Builder::new().name("toma-hevc-probe".into()).spawn(|| {
             let _ = std::panic::catch_unwind(hevc_available);
         });
         if let Err(why) = spawned {
@@ -122,13 +122,7 @@ pub fn warm_hevc_probe() {
 /// The encoder factory `register` puts in front of the built-in ones: a hardware encoder when the
 /// export asks for one (H.264 with `hardware_encoding`; HEVC always) and the OS takes the
 /// configuration, `None` (the built-in encoder, if there is one) otherwise.
-pub fn videotoolbox_encoder_factory(
-    format: Format,
-    w: u32,
-    h: u32,
-    rate: FrameRate,
-    s: &ExportSettings,
-) -> Option<filmcraft_export::Result<Box<dyn VideoEncoder>>> {
+pub fn videotoolbox_encoder_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSettings) -> Option<toma_export::Result<Box<dyn VideoEncoder>>> {
     let name = match format {
         Format::H264 if s.hardware_encoding == HardwareEncoding::Auto => "H.264",
         Format::Hevc => "HEVC",
@@ -138,18 +132,18 @@ pub fn videotoolbox_encoder_factory(
         Ok(c) => c,
         Err(why) => {
             log::info!("hardware {name} encoding declined: {why}");
-            filmcraft_export::note_hw_encode_declined();
+            toma_export::note_hw_encode_declined();
             return None;
         }
     };
     match HardwareEncoder::open(config) {
         Ok(enc) => {
-            filmcraft_export::note_hw_encode_session();
+            toma_export::note_hw_encode_session();
             Some(Ok(Box::new(enc)))
         }
         Err(why) => {
             log::info!("hardware {name} encoding declined: {why}");
-            filmcraft_export::note_hw_encode_declined();
+            toma_export::note_hw_encode_declined();
             None
         }
     }
@@ -205,23 +199,23 @@ impl HardwareEncoder {
 
     /// Replace the RGB session by a planar one for the rest of the export. Only for a session that
     /// has produced nothing yet (the first picture), so the stream starts over from its first frame.
-    fn fall_back_to_planar(&mut self, why: &str) -> filmcraft_export::Result<()> {
+    fn fall_back_to_planar(&mut self, why: &str) -> toma_export::Result<()> {
         log::info!("VideoToolbox did not take an RGBA picture ({why}): converting to 4:2:0 on the CPU");
         self.vt = VtEncoder::new(self.vt.config().clone()).map_err(ExportError::Encode)?;
         Ok(())
     }
 
     /// Convert on the CPU and submit to the planar session.
-    fn encode_planar(&mut self, f: &EncoderFrame) -> filmcraft_export::Result<Vec<VtPacket>> {
+    fn encode_planar(&mut self, f: &EncoderFrame) -> toma_export::Result<Vec<VtPacket>> {
         let (w, h) = (f.width as usize, f.height as usize);
-        filmcraft_export::timed(filmcraft_export::Stage::Convert, || filmcraft_export::rgba_to_yuv420_8(f.rgba, w, h, &mut self.y, &mut self.u, &mut self.v));
+        toma_export::timed(toma_export::Stage::Convert, || toma_export::rgba_to_yuv420_8(f.rgba, w, h, &mut self.y, &mut self.u, &mut self.v));
         self.vt.encode(f.index, &self.y, &self.u, &self.v).map_err(ExportError::Encode)
     }
 
     /// MP4 samples from compressed frames. Without frame reordering every frame is presented at
     /// its decode time, so composition offsets are 0; a frame whose time is not `n × duration`
     /// after the first (a dropped or reordered frame) is an error, never a file with wrong times.
-    fn samples(&mut self, packets: Vec<VtPacket>) -> filmcraft_export::Result<Vec<EncodedPacket>> {
+    fn samples(&mut self, packets: Vec<VtPacket>) -> toma_export::Result<Vec<EncodedPacket>> {
         let duration = self.vt.config().frame_duration;
         let mut out = Vec::with_capacity(packets.len());
         for p in packets {
@@ -259,7 +253,7 @@ impl VideoEncoder for HardwareEncoder {
         self.vt.config().timescale
     }
 
-    fn encode(&mut self, f: &EncoderFrame) -> filmcraft_export::Result<Vec<EncodedPacket>> {
+    fn encode(&mut self, f: &EncoderFrame) -> toma_export::Result<Vec<EncodedPacket>> {
         let c = self.vt.config();
         let codec = c.profile.codec();
         if f.hdr.is_some() {
@@ -276,7 +270,7 @@ impl VideoEncoder for HardwareEncoder {
             match self.vt.encode_rgba(f.index, f.rgba) {
                 Ok((packets, copied)) => {
                     // the CPU's share of the conversion: the copy into the input buffer
-                    filmcraft_export::note_stage(filmcraft_export::Stage::Convert, copied);
+                    toma_export::note_stage(toma_export::Stage::Convert, copied);
                     packets
                 }
                 // Whether this VideoToolbox converts RGB itself is only known from the first picture
@@ -291,7 +285,7 @@ impl VideoEncoder for HardwareEncoder {
         } else {
             self.encode_planar(f)?
         };
-        filmcraft_export::note_hw_encode_frame();
+        toma_export::note_hw_encode_frame();
         // the muxer needs the parameter sets after the first group of pictures
         if f.index == 0 {
             let params = self.vt.parameter_sets().ok_or_else(|| ExportError::Encode("VideoToolbox returned no parameter sets for the first frame".into()))?;
@@ -302,7 +296,7 @@ impl VideoEncoder for HardwareEncoder {
         self.samples(packets)
     }
 
-    fn flush(&mut self) -> filmcraft_export::Result<Vec<EncodedPacket>> {
+    fn flush(&mut self) -> toma_export::Result<Vec<EncodedPacket>> {
         let packets = self.vt.flush().map_err(ExportError::Encode)?;
         self.samples(packets)
     }

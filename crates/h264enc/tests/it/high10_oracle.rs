@@ -5,8 +5,8 @@
 use crate::common;
 
 use common::{Yuv16, ffmpeg, ffmpeg_decode_as, ffprobe, le16, out_dir, psnr10, synth, synth10};
-use filmcraft_h264enc::*;
 use std::process::Command;
+use toma_h264enc::*;
 
 fn cfg(w: usize, h: usize, preset: Preset, bframes: u8, rate: RateControl, slices: usize) -> EncoderConfig {
     let mut c = EncoderConfig::new(w as u32, h as u32, 30, 1);

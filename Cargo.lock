@@ -1883,7 +1883,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft"
+name = "toma"
 version = "0.17.0"
 dependencies = [
  "arboard",
@@ -1892,14 +1892,14 @@ dependencies = [
  "craft-update",
  "eframe",
  "egui",
- "filmcraft-engine",
- "filmcraft-export",
- "filmcraft-gpu",
- "filmcraft-platform",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-time",
- "filmcraft-ui-egui",
+ "toma-engine",
+ "toma-export",
+ "toma-gpu",
+ "toma-platform",
+ "toma-project",
+ "toma-render",
+ "toma-time",
+ "toma-ui-egui",
  "glob",
  "log",
  "muda",
@@ -1919,48 +1919,48 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-aac"
+name = "toma-aac"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-ac3"
+name = "toma-ac3"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-apv"
+name = "toma-apv"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-audio-dsp"
+name = "toma-audio-dsp"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
 ]
 
 [[package]]
-name = "filmcraft-automation"
+name = "toma-automation"
 version = "0.17.0"
 dependencies = [
  "base64",
- "filmcraft-engine",
- "filmcraft-time",
+ "toma-engine",
+ "toma-time",
  "image",
  "rmcp",
  "schemars",
@@ -1972,97 +1972,97 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-av1"
+name = "toma-av1"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
  "rayon",
  "rustix 1.1.5",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-avi"
+name = "toma-avi"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
 ]
 
 [[package]]
-name = "filmcraft-bitstream"
+name = "toma-bitstream"
 version = "0.17.0"
 dependencies = [
  "craft-media",
 ]
 
 [[package]]
-name = "filmcraft-captions"
+name = "toma-captions"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
- "filmcraft-project",
- "filmcraft-text",
- "filmcraft-time",
+ "toma-color",
+ "toma-project",
+ "toma-text",
+ "toma-time",
  "proptest",
  "roxmltree",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-cfb"
+name = "toma-cfb"
 version = "0.17.0"
 
 [[package]]
-name = "filmcraft-cli"
+name = "toma-cli"
 version = "0.17.0"
 dependencies = [
- "filmcraft-automation",
- "filmcraft-codecs",
- "filmcraft-engine",
- "filmcraft-export",
- "filmcraft-gpu",
- "filmcraft-media",
- "filmcraft-mpegts",
- "filmcraft-mxf",
- "filmcraft-ogg",
- "filmcraft-platform",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-time",
+ "toma-automation",
+ "toma-codecs",
+ "toma-engine",
+ "toma-export",
+ "toma-gpu",
+ "toma-media",
+ "toma-mpegts",
+ "toma-mxf",
+ "toma-ogg",
+ "toma-platform",
+ "toma-project",
+ "toma-render",
+ "toma-testkit",
+ "toma-time",
  "serde_json",
  "tokio",
 ]
 
 [[package]]
-name = "filmcraft-codecs"
+name = "toma-codecs"
 version = "0.17.0"
 dependencies = [
- "filmcraft-aac",
- "filmcraft-ac3",
- "filmcraft-apv",
- "filmcraft-av1",
- "filmcraft-avi",
- "filmcraft-bitstream",
- "filmcraft-color",
- "filmcraft-dnx",
- "filmcraft-frame",
- "filmcraft-h264",
- "filmcraft-hevc",
- "filmcraft-isobmff",
- "filmcraft-matroska",
- "filmcraft-media",
- "filmcraft-mpa",
- "filmcraft-mpeg2v",
- "filmcraft-mpegts",
- "filmcraft-mxf",
- "filmcraft-ogg",
- "filmcraft-opus",
- "filmcraft-prores",
- "filmcraft-testkit",
- "filmcraft-time",
- "filmcraft-vp8",
- "filmcraft-vp9",
+ "toma-aac",
+ "toma-ac3",
+ "toma-apv",
+ "toma-av1",
+ "toma-avi",
+ "toma-bitstream",
+ "toma-color",
+ "toma-dnx",
+ "toma-frame",
+ "toma-h264",
+ "toma-hevc",
+ "toma-isobmff",
+ "toma-matroska",
+ "toma-media",
+ "toma-mpa",
+ "toma-mpeg2v",
+ "toma-mpegts",
+ "toma-mxf",
+ "toma-ogg",
+ "toma-opus",
+ "toma-prores",
+ "toma-testkit",
+ "toma-time",
+ "toma-vp8",
+ "toma-vp9",
  "image",
  "log",
  "rayon",
@@ -2073,7 +2073,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-color"
+name = "toma-color"
 version = "0.17.0"
 dependencies = [
  "proptest",
@@ -2081,10 +2081,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-dng"
+name = "toma-dng"
 version = "0.17.0"
 dependencies = [
- "filmcraft-dng",
+ "toma-dng",
  "image",
  "rayon",
  "serde",
@@ -2093,56 +2093,56 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-dnx"
+name = "toma-dnx"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-edit"
+name = "toma-edit"
 version = "0.17.0"
 dependencies = [
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-time",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-time",
  "proptest",
  "serde_json",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-engine"
+name = "toma-engine"
 version = "0.17.0"
 dependencies = [
  "chrono",
  "craft-docpath",
- "filmcraft-audio-dsp",
- "filmcraft-captions",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-dng",
- "filmcraft-edit",
- "filmcraft-export",
- "filmcraft-format",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-interchange",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-mxf",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-scopes",
- "filmcraft-speech",
- "filmcraft-testkit",
- "filmcraft-text",
- "filmcraft-time",
- "filmcraft-tts",
+ "toma-audio-dsp",
+ "toma-captions",
+ "toma-codecs",
+ "toma-color",
+ "toma-dng",
+ "toma-edit",
+ "toma-export",
+ "toma-format",
+ "toma-frame",
+ "toma-geom",
+ "toma-interchange",
+ "toma-isobmff",
+ "toma-media",
+ "toma-mxf",
+ "toma-project",
+ "toma-render",
+ "toma-scopes",
+ "toma-speech",
+ "toma-testkit",
+ "toma-text",
+ "toma-time",
+ "toma-tts",
  "image",
  "log",
  "roxmltree",
@@ -2153,29 +2153,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-export"
+name = "toma-export"
 version = "0.17.0"
 dependencies = [
- "filmcraft-aac",
- "filmcraft-apv",
- "filmcraft-audio-dsp",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-dnx",
- "filmcraft-flac",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-h264enc",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-mp3enc",
- "filmcraft-mxf",
- "filmcraft-project",
- "filmcraft-prores",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-text",
- "filmcraft-time",
+ "toma-aac",
+ "toma-apv",
+ "toma-audio-dsp",
+ "toma-codecs",
+ "toma-color",
+ "toma-dnx",
+ "toma-flac",
+ "toma-frame",
+ "toma-geom",
+ "toma-h264enc",
+ "toma-isobmff",
+ "toma-media",
+ "toma-mp3enc",
+ "toma-mxf",
+ "toma-project",
+ "toma-prores",
+ "toma-render",
+ "toma-testkit",
+ "toma-text",
+ "toma-time",
  "image",
  "rayon",
  "serde",
@@ -2185,22 +2185,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-flac"
+name = "toma-flac"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-format"
+name = "toma-format"
 version = "0.17.0"
 dependencies = [
  "chrono",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-time",
+ "toma-media",
+ "toma-project",
+ "toma-time",
  "log",
  "serde",
  "serde_json",
@@ -2209,17 +2209,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-frame"
+name = "toma-frame"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
- "filmcraft-time",
+ "toma-color",
+ "toma-time",
  "rayon",
  "serde",
 ]
 
 [[package]]
-name = "filmcraft-geom"
+name = "toma-geom"
 version = "0.17.0"
 dependencies = [
  "proptest",
@@ -2227,34 +2227,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-golden"
+name = "toma-golden"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-gpu",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-time",
+ "toma-color",
+ "toma-frame",
+ "toma-geom",
+ "toma-gpu",
+ "toma-media",
+ "toma-project",
+ "toma-render",
+ "toma-testkit",
+ "toma-time",
  "pollster 1.0.1",
  "wgpu",
 ]
 
 [[package]]
-name = "filmcraft-gpu"
+name = "toma-gpu"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
- "filmcraft-export",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-time",
+ "toma-color",
+ "toma-export",
+ "toma-frame",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-render",
+ "toma-time",
  "image",
  "log",
  "pollster 1.0.1",
@@ -2263,45 +2263,45 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-h264"
+name = "toma-h264"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-h264enc"
+name = "toma-h264enc"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-hevc"
+name = "toma-hevc"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-interchange"
+name = "toma-interchange"
 version = "0.17.0"
 dependencies = [
- "filmcraft-cfb",
- "filmcraft-color",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-time",
+ "toma-cfb",
+ "toma-color",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-time",
  "proptest",
  "roxmltree",
  "serde",
@@ -2310,33 +2310,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-isobmff"
+name = "toma-isobmff"
 version = "0.17.0"
 dependencies = [
  "craft-media",
- "filmcraft-testkit",
+ "toma-testkit",
  "proptest",
  "serde_json",
 ]
 
 [[package]]
-name = "filmcraft-matroska"
+name = "toma-matroska"
 version = "0.17.0"
 dependencies = [
  "craft-media",
- "filmcraft-testkit",
+ "toma-testkit",
  "serde_json",
 ]
 
 [[package]]
-name = "filmcraft-media"
+name = "toma-media"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
- "filmcraft-dng",
- "filmcraft-frame",
- "filmcraft-testkit",
- "filmcraft-time",
+ "toma-color",
+ "toma-dng",
+ "toma-frame",
+ "toma-testkit",
+ "toma-time",
  "image",
  "png",
  "rayon",
@@ -2345,79 +2345,79 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-mp3enc"
+name = "toma-mp3enc"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-mpa"
+name = "toma-mpa"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-mpeg2v"
+name = "toma-mpeg2v"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-mpegts"
+name = "toma-mpegts"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-mxf"
+name = "toma-mxf"
 version = "0.17.0"
 dependencies = [
  "chrono",
- "filmcraft-testkit",
+ "toma-testkit",
 ]
 
 [[package]]
-name = "filmcraft-ogg"
+name = "toma-ogg"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
 ]
 
 [[package]]
-name = "filmcraft-opus"
+name = "toma-opus"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
 ]
 
 [[package]]
-name = "filmcraft-platform"
+name = "toma-platform"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-export",
- "filmcraft-frame",
- "filmcraft-h264",
- "filmcraft-hevc",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-testkit",
- "filmcraft-time",
+ "toma-bitstream",
+ "toma-codecs",
+ "toma-color",
+ "toma-export",
+ "toma-frame",
+ "toma-h264",
+ "toma-hevc",
+ "toma-isobmff",
+ "toma-media",
+ "toma-project",
+ "toma-render",
+ "toma-testkit",
+ "toma-time",
  "libloading",
  "log",
  "objc2-core-foundation",
@@ -2428,13 +2428,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-project"
+name = "toma-project"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-time",
+ "toma-color",
+ "toma-geom",
+ "toma-media",
+ "toma-time",
  "proptest",
  "serde",
  "serde_json",
@@ -2443,28 +2443,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-prores"
+name = "toma-prores"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-render"
+name = "toma-render"
 version = "0.17.0"
 dependencies = [
- "filmcraft-audio-dsp",
- "filmcraft-captions",
- "filmcraft-color",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-media",
- "filmcraft-project",
- "filmcraft-text",
- "filmcraft-time",
+ "toma-audio-dsp",
+ "toma-captions",
+ "toma-color",
+ "toma-frame",
+ "toma-geom",
+ "toma-media",
+ "toma-project",
+ "toma-text",
+ "toma-time",
  "image",
  "rayon",
  "rustix 1.1.5",
@@ -2473,22 +2473,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-scopes"
+name = "toma-scopes"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
+ "toma-color",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "filmcraft-speech"
+name = "toma-speech"
 version = "0.17.0"
 dependencies = [
  "candle-core",
  "candle-nn",
- "filmcraft-project",
- "filmcraft-time",
+ "toma-project",
+ "toma-time",
  "rayon",
  "rustls",
  "rustls-rustcrypto",
@@ -2501,7 +2501,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-testkit"
+name = "toma-testkit"
 version = "0.17.0"
 dependencies = [
  "chrono",
@@ -2510,10 +2510,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-text"
+name = "toma-text"
 version = "0.17.0"
 dependencies = [
- "filmcraft-color",
+ "toma-color",
  "harfrust",
  "skrifa",
  "tempfile",
@@ -2523,7 +2523,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-time"
+name = "toma-time"
 version = "0.17.0"
 dependencies = [
  "proptest",
@@ -2531,13 +2531,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-tts"
+name = "toma-tts"
 version = "0.17.0"
 dependencies = [
  "candle-core",
  "candle-nn",
- "filmcraft-audio-dsp",
- "filmcraft-tts-text",
+ "toma-audio-dsp",
+ "toma-tts-text",
  "serde",
  "serde_json",
  "sha2",
@@ -2546,7 +2546,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-tts-text"
+name = "toma-tts-text"
 version = "0.17.0"
 dependencies = [
  "serde",
@@ -2554,7 +2554,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-ui-egui"
+name = "toma-ui-egui"
 version = "0.17.0"
 dependencies = [
  "cpu-time",
@@ -2564,25 +2564,25 @@ dependencies = [
  "egui",
  "egui_extras",
  "egui_kittest",
- "filmcraft-audio-dsp",
- "filmcraft-captions",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-edit",
- "filmcraft-engine",
- "filmcraft-export",
- "filmcraft-frame",
- "filmcraft-geom",
- "filmcraft-gpu",
- "filmcraft-interchange",
- "filmcraft-media",
- "filmcraft-platform",
- "filmcraft-project",
- "filmcraft-render",
- "filmcraft-scopes",
- "filmcraft-text",
- "filmcraft-time",
- "filmcraft-tts",
+ "toma-audio-dsp",
+ "toma-captions",
+ "toma-codecs",
+ "toma-color",
+ "toma-edit",
+ "toma-engine",
+ "toma-export",
+ "toma-frame",
+ "toma-geom",
+ "toma-gpu",
+ "toma-interchange",
+ "toma-media",
+ "toma-platform",
+ "toma-project",
+ "toma-render",
+ "toma-scopes",
+ "toma-text",
+ "toma-time",
+ "toma-tts",
  "image",
  "log",
  "pollster 1.0.1",
@@ -2597,40 +2597,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "filmcraft-vp8"
+name = "toma-vp8"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-vp9"
+name = "toma-vp9"
 version = "0.17.0"
 dependencies = [
- "filmcraft-bitstream",
- "filmcraft-testkit",
+ "toma-bitstream",
+ "toma-testkit",
  "rayon",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "filmcraft-web"
+name = "toma-web"
 version = "0.17.0"
 dependencies = [
  "craft-web-api",
  "craft-web-host",
  "eframe",
  "egui",
- "filmcraft-codecs",
- "filmcraft-color",
- "filmcraft-engine",
- "filmcraft-format",
- "filmcraft-frame",
- "filmcraft-isobmff",
- "filmcraft-media",
- "filmcraft-time",
- "filmcraft-ui-egui",
+ "toma-codecs",
+ "toma-color",
+ "toma-engine",
+ "toma-format",
+ "toma-frame",
+ "toma-isobmff",
+ "toma-media",
+ "toma-time",
+ "toma-ui-egui",
  "js-sys",
  "log",
  "serde_json",
@@ -8118,7 +8118,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 name = "xtask"
 version = "0.17.0"
 dependencies = [
- "filmcraft-testkit",
+ "toma-testkit",
  "serde_json",
 ]
 

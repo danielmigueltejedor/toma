@@ -1,12 +1,12 @@
 use super::quick::list_row;
 use super::settings::check;
-use super::{Align2, Color32, FileDialog, FilmcraftApp, Rect, Reg, Sense, Value, apply_preset, json, pos2, preset_key, settings_json, vec2};
+use super::{Align2, Color32, FileDialog, Rect, Reg, Sense, TomaApp, Value, apply_preset, json, pos2, preset_key, settings_json, vec2};
 
 // ---------------------------------------------------------------------------------------------
 // Preset Manager
 // ---------------------------------------------------------------------------------------------
 
-pub(super) fn preset_manager(app: &mut FilmcraftApp, ctx: &egui::Context) {
+pub(super) fn preset_manager(app: &mut TomaApp, ctx: &egui::Context) {
     let Some(mut m) = app.ui.export.manager.clone() else { return };
     let t = app.tokens;
     let mut reg = Reg::default();

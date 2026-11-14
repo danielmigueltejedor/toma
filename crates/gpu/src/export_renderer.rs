@@ -1,7 +1,7 @@
 //! Off-screen GPU export renderer: composite a frame with the same
-//! [`filmcraft_render::plan::plan_frame`] + [`GpuCompositor`] path the monitors use, then read
+//! [`toma_render::plan::plan_frame`] + [`GpuCompositor`] path the monitors use, then read
 //! the **linear float accumulator** back (not the sRGB display texture), so the result matches
-//! `filmcraft_render::render_sequence`'s premultiplied linear-light RGBA and the export pipeline's
+//! `toma_render::render_sequence`'s premultiplied linear-light RGBA and the export pipeline's
 //! placement, overlays and video limiter see exactly what the CPU renderer would have produced.
 //!
 //! Renderers share one off-screen wgpu device (no window), created by the first and kept for the
@@ -12,10 +12,10 @@
 //! CPU) is returned unchanged — it already is the CPU image.
 
 use crate::{GpuCompositor, prepare};
-use filmcraft_project::{ItemId, Project};
-use filmcraft_render::plan::{DeviceCaps, FramePlan, plan_frame};
-use filmcraft_render::{Image, RenderOptions, SourceProvider};
-use filmcraft_time::Tick;
+use toma_project::{ItemId, Project};
+use toma_render::plan::{DeviceCaps, FramePlan, plan_frame};
+use toma_render::{Image, RenderOptions, SourceProvider};
+use toma_time::Tick;
 
 /// Where export rendering spends its time (process-wide totals, for the bench).
 pub mod timing {
@@ -105,7 +105,7 @@ impl ExportRenderer {
         static SHARED: std::sync::OnceLock<Option<(wgpu::Instance, wgpu::Device, wgpu::Queue)>> = std::sync::OnceLock::new();
         let (instance, device, queue) = SHARED
             .get_or_init(|| {
-                // A build without a wgpu backend for this platform (`cargo build -p filmcraft-cli`
+                // A build without a wgpu backend for this platform (`cargo build -p toma-cli`
                 // alone: this crate asks for none) has no GPU to offer, and `Instance::default()`
                 // panics there.
                 if wgpu::Instance::enabled_backend_features().is_empty() {
@@ -177,13 +177,13 @@ impl ExportRenderer {
 mod tests {
     use super::*;
     use crate::{f16_to_f32, f32_to_f16};
-    use filmcraft_export::FrameRenderer;
-    use filmcraft_media::generators::GeneratorSource;
-    use filmcraft_media::{Generator, MediaSource};
-    use filmcraft_project::{ItemKind, Label, MediaClip, MediaRef, Project, SequenceSettings, TrackKind};
-    use filmcraft_render::SourceMap;
-    use filmcraft_time::{TICKS_PER_SECOND, Tick, TimeRange};
     use std::sync::Arc;
+    use toma_export::FrameRenderer;
+    use toma_media::generators::GeneratorSource;
+    use toma_media::{Generator, MediaSource};
+    use toma_project::{ItemKind, Label, MediaClip, MediaRef, Project, SequenceSettings, TrackKind};
+    use toma_render::SourceMap;
+    use toma_time::{TICKS_PER_SECOND, Tick, TimeRange};
 
     const EPS: f32 = 1e-4;
 
@@ -191,14 +191,8 @@ mod tests {
     /// export tests' fixture-free project helper).
     fn project(transform: bool) -> (Arc<Project>, ItemId, SourceMap) {
         let mut p = Project::new("x");
-        let g = GeneratorSource::new(
-            Generator::ColorMatte { color: [0.2, 0.5, 0.9, 1.0] },
-            320,
-            180,
-            filmcraft_time::FrameRate::FPS_24,
-            Tick(2 * TICKS_PER_SECOND),
-        );
-        let tone = GeneratorSource::new(Generator::Tone { hz: 440.0, db: -6.0 }, 320, 180, filmcraft_time::FrameRate::FPS_24, Tick(2 * TICKS_PER_SECOND));
+        let g = GeneratorSource::new(Generator::ColorMatte { color: [0.2, 0.5, 0.9, 1.0] }, 320, 180, toma_time::FrameRate::FPS_24, Tick(2 * TICKS_PER_SECOND));
+        let tone = GeneratorSource::new(Generator::Tone { hz: 440.0, db: -6.0 }, 320, 180, toma_time::FrameRate::FPS_24, Tick(2 * TICKS_PER_SECOND));
         let add = |p: &mut Project, g: &GeneratorSource| {
             let info = g.info().clone();
             p.add_item(
@@ -220,9 +214,8 @@ mod tests {
         };
         let red = add(&mut p, &g);
         let t = add(&mut p, &tone);
-        let seq =
-            p.new_sequence("s", SequenceSettings { width: 320, height: 180, frame_rate: filmcraft_time::FrameRate::FPS_24, ..Default::default() }, 2, 1, None);
-        let r = filmcraft_time::FrameRate::FPS_24;
+        let seq = p.new_sequence("s", SequenceSettings { width: 320, height: 180, frame_rate: toma_time::FrameRate::FPS_24, ..Default::default() }, 2, 1, None);
+        let r = toma_time::FrameRate::FPS_24;
         let v = p.make_track_item(red, TrackKind::Video, Tick::ZERO, TimeRange::new(Tick::ZERO, r.tick_of(24)), r).unwrap();
         let a = p.make_track_item(t, TrackKind::Audio, Tick::ZERO, TimeRange::new(Tick::ZERO, r.tick_of(24)), r).unwrap();
         p.sequence_mut(seq).unwrap().video_tracks[0].items.push(v);
@@ -231,18 +224,18 @@ mod tests {
             if let Some(clip) = p.sequence_mut(seq).unwrap().video_tracks[0].items.last_mut() {
                 let m = clip.effect_mut("motion").unwrap();
                 if let Some(pm) = m.param_mut("scale") {
-                    pm.value = filmcraft_project::ParamValue::Float(45.0);
+                    pm.value = toma_project::ParamValue::Float(45.0);
                 }
                 if let Some(pm) = m.param_mut("rotation") {
-                    pm.value = filmcraft_project::ParamValue::Float(20.0);
+                    pm.value = toma_project::ParamValue::Float(20.0);
                 }
                 if let Some(pm) = m.param_mut("position") {
-                    pm.value = filmcraft_project::ParamValue::Vec2(filmcraft_geom::Vec2::new(215.0, 70.0));
+                    pm.value = toma_project::ParamValue::Vec2(toma_geom::Vec2::new(215.0, 70.0));
                 }
                 if let Some(o) = clip.effect_mut("opacity")
                     && let Some(pm) = o.param_mut("opacity")
                 {
-                    pm.value = filmcraft_project::ParamValue::Float(70.0);
+                    pm.value = toma_project::ParamValue::Float(70.0);
                 }
             }
         }
@@ -281,7 +274,7 @@ mod tests {
         };
         let (p, seq, m) = project(false);
         let t = Tick::ZERO;
-        let cpu = filmcraft_render::render_sequence(&p, seq, t, RenderOptions::default(), &m);
+        let cpu = toma_render::render_sequence(&p, seq, t, RenderOptions::default(), &m);
         let gpu = r.render(&p, seq, t, RenderOptions::default(), &m).expect("GPU rendered the frame");
         assert!(cpu.px.as_chunks::<4>().0.iter().any(|pixel| pixel[..3].iter().any(|x| *x > 0.1)), "solid fixture must contain a visible picture");
         // The linear premultiplied accumulator should be very close to the CPU float image.
@@ -303,24 +296,24 @@ mod tests {
         };
         let (p, seq, m) = project(false);
         let mut p = Arc::unwrap_or_clone(p);
-        let rate = filmcraft_time::FrameRate::FPS_24;
+        let rate = toma_time::FrameRate::FPS_24;
         let a = p.add_item("Adjustment Layer", Label::Lavender, ItemKind::AdjustmentLayer { width: 320, height: 180, rate, duration: rate.tick_of(24) }, None);
         let mut ti = p.make_track_item(a, TrackKind::Video, Tick::ZERO, TimeRange::new(Tick::ZERO, rate.tick_of(24)), rate).unwrap();
-        let mut e = filmcraft_project::find_effect("proc_amp").unwrap().instance();
-        e.param_mut("brightness").unwrap().value = filmcraft_project::ParamValue::Float(25.0);
+        let mut e = toma_project::find_effect("proc_amp").unwrap().instance();
+        e.param_mut("brightness").unwrap().value = toma_project::ParamValue::Float(25.0);
         ti.effects.insert(0, e);
         p.sequence_mut(seq).unwrap().video_tracks[1].items.push(ti);
         let (t, opts) = (Tick::ZERO, RenderOptions::default());
-        let cpu = filmcraft_render::render_sequence(&p, seq, t, opts, &m);
+        let cpu = toma_render::render_sequence(&p, seq, t, opts, &m);
         if r.compositor.fx.is_some() {
-            assert!(!filmcraft_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "the effect stage runs the adjustment layer");
+            assert!(!toma_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "the effect stage runs the adjustment layer");
             let gpu = r.render(&p, seq, t, opts, &m).expect("GPU rendered the frame");
             assert_parity(&cpu, &gpu, "adjustment layer");
             assert_eq!((r.compositor.gpu_adjustments, r.compositor.cpu_adjustments), (1, 0));
         }
         r.compositor.fx = None;
         assert_eq!(r.caps(), DeviceCaps::NONE);
-        assert!(filmcraft_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "no effect stage: the export renders the frame without this renderer");
+        assert!(toma_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "no effect stage: the export renders the frame without this renderer");
         let counts = (r.compositor.gpu_adjustments, r.compositor.cpu_adjustments);
         // asked anyway, it hands back the CPU renderer's picture, planned as one image
         let img = r.render(&p, seq, t, opts, &m).expect("the CPU image the frame was planned as");
@@ -349,8 +342,8 @@ mod tests {
 
     /// `item` on video track `track` of `seq` from frame `start` for `frames` frames, scaled to
     /// the frame; returns the clip.
-    fn put(p: &mut Project, seq: ItemId, track: usize, item: ItemId, start: i64, frames: i64) -> filmcraft_project::ClipId {
-        let rate = filmcraft_time::FrameRate::FPS_24;
+    fn put(p: &mut Project, seq: ItemId, track: usize, item: ItemId, start: i64, frames: i64) -> toma_project::ClipId {
+        let rate = toma_time::FrameRate::FPS_24;
         let mut ti = p.make_track_item(item, TrackKind::Video, rate.tick_of(start), TimeRange::new(Tick::ZERO, rate.tick_of(frames)), rate).unwrap();
         ti.scale_to_frame = true;
         let id = ti.id;
@@ -360,22 +353,22 @@ mod tests {
         id
     }
 
-    fn set_param(p: &mut Project, seq: ItemId, clip: filmcraft_project::ClipId, effect: &str, param: &str, v: f64) {
+    fn set_param(p: &mut Project, seq: ItemId, clip: toma_project::ClipId, effect: &str, param: &str, v: f64) {
         let it = p.sequence_mut(seq).unwrap().find_item_mut(clip).unwrap().1;
-        it.effect_mut(effect).unwrap().params.get_mut(param).unwrap().value = filmcraft_project::ParamValue::Float(v);
+        it.effect_mut(effect).unwrap().params.get_mut(param).unwrap().value = toma_project::ParamValue::Float(v);
     }
 
     /// A full-frame adjustment layer on track `track` of `seq` for frames 0..48 with Proc Amp
     /// (brightness 25) and Gaussian Blur (6): the kind a device with an effect stage runs as a
     /// `PlanStep::Adjust`, the blur spreading the picture into any transparent part of the canvas.
     fn adjustment_layer(p: &mut Project, seq: ItemId, track: usize) {
-        let rate = filmcraft_time::FrameRate::FPS_24;
+        let rate = toma_time::FrameRate::FPS_24;
         let a = p.add_item("Adjustment Layer", Label::Lavender, ItemKind::AdjustmentLayer { width: 320, height: 180, rate, duration: rate.tick_of(48) }, None);
         let clip = put(p, seq, track, a, 0, 48);
         let it = p.sequence_mut(seq).unwrap().find_item_mut(clip).unwrap().1;
         for (id, param, v) in [("gaussian_blur", "blurriness", 6.0), ("proc_amp", "brightness", 25.0)] {
-            let mut e = filmcraft_project::find_effect(id).unwrap().instance();
-            e.param_mut(param).unwrap().value = filmcraft_project::ParamValue::Float(v);
+            let mut e = toma_project::find_effect(id).unwrap().instance();
+            e.param_mut(param).unwrap().value = toma_project::ParamValue::Float(v);
             it.effects.insert(0, e);
         }
     }
@@ -407,28 +400,21 @@ mod tests {
         }
         let mut p = Project::new("x");
         let mut m = SourceMap::default();
-        let ocean = media_item(&mut p, &mut m, GeneratorSource::demo(filmcraft_media::DemoScene::OceanSunset));
+        let ocean = media_item(&mut p, &mut m, GeneratorSource::demo(toma_media::DemoScene::OceanSunset));
         let blue = media_item(
             &mut p,
             &mut m,
-            GeneratorSource::new(
-                Generator::ColorMatte { color: [0.1, 0.4, 0.95, 1.0] },
-                320,
-                180,
-                filmcraft_time::FrameRate::FPS_24,
-                Tick(4 * TICKS_PER_SECOND),
-            ),
+            GeneratorSource::new(Generator::ColorMatte { color: [0.1, 0.4, 0.95, 1.0] }, 320, 180, toma_time::FrameRate::FPS_24, Tick(4 * TICKS_PER_SECOND)),
         );
-        let seq =
-            p.new_sequence("s", SequenceSettings { width: 320, height: 180, frame_rate: filmcraft_time::FrameRate::FPS_24, ..Default::default() }, 2, 0, None);
+        let seq = p.new_sequence("s", SequenceSettings { width: 320, height: 180, frame_rate: toma_time::FrameRate::FPS_24, ..Default::default() }, 2, 0, None);
         let a = put(&mut p, seq, 0, ocean, 0, 24);
         let b = put(&mut p, seq, 0, blue, 24, 24);
         adjustment_layer(&mut p, seq, 1);
-        let rate = filmcraft_time::FrameRate::FPS_24;
+        let rate = toma_time::FrameRate::FPS_24;
         for reverse in [false, true] {
-            p.sequence_mut(seq).unwrap().video_tracks[0].transitions = vec![filmcraft_project::Transition {
-                id: filmcraft_project::TransitionId(1),
-                effect: filmcraft_project::find_effect("push").unwrap().instance(),
+            p.sequence_mut(seq).unwrap().video_tracks[0].transitions = vec![toma_project::Transition {
+                id: toma_project::TransitionId(1),
+                effect: toma_project::find_effect("push").unwrap().instance(),
                 start: rate.tick_of(18),
                 duration: rate.tick_of(12),
                 from: Some(a),
@@ -440,12 +426,12 @@ mod tests {
                 let opts = RenderOptions { scale, ..Default::default() };
                 for f in [20, 24, 27] {
                     let (t, what) = (rate.tick_of(f), format!("Push + adjustment, reverse {reverse}, scale {scale}, frame {f}"));
-                    assert!(!filmcraft_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "{what}: takes a GPU renderer");
+                    assert!(!toma_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "{what}: takes a GPU renderer");
                     let before = (r.compositor.gpu_transitions, r.compositor.gpu_adjustments, r.compositor.cpu_adjustments);
                     let gpu = r.render(&p, seq, t, opts, &m).expect("GPU frame");
                     let after = (r.compositor.gpu_transitions, r.compositor.gpu_adjustments, r.compositor.cpu_adjustments);
                     assert_eq!(after, (before.0 + 1, before.1 + 1, before.2), "{what}: the Push and the adjustment layer drawn on the GPU");
-                    let cpu = filmcraft_render::render_sequence(&p, seq, t, opts, &m);
+                    let cpu = toma_render::render_sequence(&p, seq, t, opts, &m);
                     assert_parity(&cpu, &gpu, &what);
                 }
             }
@@ -465,7 +451,7 @@ mod tests {
             eprintln!("SKIPPED (gpu adjustment parity): no effect stage on this device");
             return;
         }
-        let rate = filmcraft_time::FrameRate::FPS_24;
+        let rate = toma_time::FrameRate::FPS_24;
         let settings = SequenceSettings { width: 320, height: 180, frame_rate: rate, ..Default::default() };
         // V1 of `seq`: a 160×88 matte at 70 % opacity in the middle, unscaled, so transparent
         // around it and translucent inside, with its edges on whole pixels at both scales: the
@@ -531,11 +517,11 @@ mod tests {
             for scale in [1.0, 0.5] {
                 let (t, opts) = (rate.tick_of(12), RenderOptions { scale, ..Default::default() });
                 let what = format!("{what} at {scale}");
-                assert!(!filmcraft_render::plan::is_cpu_frame(p, *seq, t, opts, r.caps()), "{what}: takes a GPU renderer");
+                assert!(!toma_render::plan::is_cpu_frame(p, *seq, t, opts, r.caps()), "{what}: takes a GPU renderer");
                 let before = (r.compositor.gpu_adjustments, r.compositor.cpu_adjustments);
                 let gpu = r.render(p, *seq, t, opts, m).expect("GPU frame");
                 assert_eq!((r.compositor.gpu_adjustments, r.compositor.cpu_adjustments), (before.0 + steps, before.1), "{what}: adjustment steps on the GPU");
-                let cpu = filmcraft_render::render_sequence(p, *seq, t, opts, m);
+                let cpu = toma_render::render_sequence(p, *seq, t, opts, m);
                 assert_parity(&cpu, &gpu, &what);
                 assert_alpha_parity(&cpu, &gpu, &what);
             }
@@ -550,7 +536,7 @@ mod tests {
             eprintln!("SKIPPED (gpu transition export): no adapter");
             return;
         };
-        let rate = filmcraft_time::FrameRate::FPS_24;
+        let rate = toma_time::FrameRate::FPS_24;
         let mut p = Project::new("x");
         let mut m = SourceMap::default();
         let mut clips = Vec::new();
@@ -581,9 +567,9 @@ mod tests {
         }
         let opts = RenderOptions::default();
         for (id, reverse) in [("push", false), ("push", true)] {
-            p.sequence_mut(seq).unwrap().video_tracks[0].transitions = vec![filmcraft_project::Transition {
-                id: filmcraft_project::TransitionId(1),
-                effect: filmcraft_project::find_effect(id).unwrap().instance(),
+            p.sequence_mut(seq).unwrap().video_tracks[0].transitions = vec![toma_project::Transition {
+                id: toma_project::TransitionId(1),
+                effect: toma_project::find_effect(id).unwrap().instance(),
                 start: rate.tick_of(18),
                 duration: rate.tick_of(12),
                 from: ids.first().copied(),
@@ -593,16 +579,16 @@ mod tests {
             }];
             for f in [20, 24, 27] {
                 let t = rate.tick_of(f);
-                assert!(!filmcraft_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "{id} takes a GPU renderer");
+                assert!(!toma_render::plan::is_cpu_frame(&p, seq, t, opts, r.caps()), "{id} takes a GPU renderer");
                 let before = r.compositor.gpu_transitions;
                 let gpu = r.render(&p, seq, t, opts, &m).expect("GPU transition frame");
                 assert_eq!(r.compositor.gpu_transitions, before + 1, "{id}: drawn on the GPU");
-                assert_parity(&filmcraft_render::render_sequence(&p, seq, t, opts, &m), &gpu, &format!("{id} reverse={reverse} frame {f}"));
+                assert_parity(&toma_render::render_sequence(&p, seq, t, opts, &m), &gpu, &format!("{id} reverse={reverse} frame {f}"));
             }
         }
         // Film Dissolve has no GPU stage: the whole frame stays a CPU image
-        p.sequence_mut(seq).unwrap().video_tracks[0].transitions[0].effect = filmcraft_project::find_effect("film_dissolve").unwrap().instance();
-        assert!(filmcraft_render::plan::is_cpu_frame(&p, seq, rate.tick_of(24), opts, r.caps()));
+        p.sequence_mut(seq).unwrap().video_tracks[0].transitions[0].effect = toma_project::find_effect("film_dissolve").unwrap().instance();
+        assert!(toma_render::plan::is_cpu_frame(&p, seq, rate.tick_of(24), opts, r.caps()));
     }
 
     #[test]
@@ -612,8 +598,8 @@ mod tests {
             return;
         };
         let (p, seq, m) = project(true);
-        let t = filmcraft_time::FrameRate::FPS_24.tick_of(10);
-        let cpu = filmcraft_render::render_sequence(&p, seq, t, RenderOptions::default(), &m);
+        let t = toma_time::FrameRate::FPS_24.tick_of(10);
+        let cpu = toma_render::render_sequence(&p, seq, t, RenderOptions::default(), &m);
         let gpu = r.render(&p, seq, t, RenderOptions::default(), &m).expect("GPU rendered the frame");
         assert!(cpu.px.as_chunks::<4>().0.iter().any(|pixel| pixel[..3].iter().any(|x| *x > 0.1)), "transformed fixture must contain a visible picture");
         assert_parity(&cpu, &gpu, "transformed");
@@ -629,9 +615,9 @@ mod tests {
             let (mut p, inner, mut sources) = project(false);
             let project = Arc::make_mut(&mut p);
             let media = *sources.0.iter().find(|(_, s)| s.info().has_video()).unwrap().0;
-            let rate = filmcraft_time::FrameRate::FPS_24;
+            let rate = toma_time::FrameRate::FPS_24;
             if textured {
-                let source = GeneratorSource::new(Generator::Demo(filmcraft_media::DemoScene::OceanSunset), 320, 180, rate, Tick(2 * TICKS_PER_SECOND));
+                let source = GeneratorSource::new(Generator::Demo(toma_media::DemoScene::OceanSunset), 320, 180, rate, Tick(2 * TICKS_PER_SECOND));
                 let ItemKind::Media(clip) = &mut project.item_mut(media).unwrap().kind else { panic!("expected generated media") };
                 clip.info = source.info().clone();
                 clip.media = MediaRef::Generator(source.generator.clone());
@@ -640,21 +626,21 @@ mod tests {
             let range = TimeRange::new(Tick::ZERO, rate.tick_of(24));
             // Keep the source partly outside the nest: a future flattened plan must still clip it.
             project.sequence_mut(inner).unwrap().video_tracks[0].items[0].effect_mut("motion").unwrap().param_mut("position").unwrap().value =
-                filmcraft_project::ParamValue::Vec2(filmcraft_geom::Vec2::new(240.0, 90.0));
+                toma_project::ParamValue::Vec2(toma_geom::Vec2::new(240.0, 90.0));
             let outer = project.new_sequence("outer", project.sequence(inner).unwrap().settings.clone(), 1, 0, None);
             let mut nest = project.make_track_item(inner, TrackKind::Video, Tick::ZERO, range, rate).unwrap();
             let motion = nest.effect_mut("motion").unwrap();
-            motion.param_mut("position").unwrap().value = filmcraft_project::ParamValue::Vec2(filmcraft_geom::Vec2::new(185.0, 75.0));
-            motion.param_mut("scale").unwrap().value = filmcraft_project::ParamValue::Float(60.0);
-            motion.param_mut("uniform_scale").unwrap().value = filmcraft_project::ParamValue::Bool(false);
+            motion.param_mut("position").unwrap().value = toma_project::ParamValue::Vec2(toma_geom::Vec2::new(185.0, 75.0));
+            motion.param_mut("scale").unwrap().value = toma_project::ParamValue::Float(60.0);
+            motion.param_mut("uniform_scale").unwrap().value = toma_project::ParamValue::Bool(false);
             project.sequence_mut(outer).unwrap().video_tracks[0].items.push(nest);
             for (rotation, width) in [(0.0, 60.0), (19.0, 60.0), (0.0, 30.0), (0.0, 120.0)] {
                 let motion = Arc::make_mut(&mut p).sequence_mut(outer).unwrap().video_tracks[0].items[0].effect_mut("motion").unwrap();
-                motion.param_mut("rotation").unwrap().value = filmcraft_project::ParamValue::Float(rotation);
-                motion.param_mut("scale_width").unwrap().value = filmcraft_project::ParamValue::Float(width);
+                motion.param_mut("rotation").unwrap().value = toma_project::ParamValue::Float(rotation);
+                motion.param_mut("scale_width").unwrap().value = toma_project::ParamValue::Float(width);
                 for scale in [1.0, 0.5] {
                     let opts = RenderOptions { scale, ..Default::default() };
-                    let cpu = filmcraft_render::render_sequence(&p, outer, Tick::ZERO, opts, &sources);
+                    let cpu = toma_render::render_sequence(&p, outer, Tick::ZERO, opts, &sources);
                     assert!(cpu.px.as_chunks::<4>().0.iter().any(|pixel| pixel[..3].iter().any(|x| *x > 0.1)), "fixture must contain a visible picture");
                     let gpu = renderer.render(&p, outer, Tick::ZERO, opts, &sources).expect("GPU rendered the nest");
                     assert_parity(&cpu, &gpu, "transformed nest");
@@ -682,7 +668,7 @@ mod tests {
         };
         let (p, seq, m) = project(false);
         let gpu = R(r).render(&p, seq, Tick::ZERO, RenderOptions::default(), &m).expect("rendered");
-        let cpu = filmcraft_render::render_sequence(&p, seq, Tick::ZERO, RenderOptions::default(), &m);
+        let cpu = toma_render::render_sequence(&p, seq, Tick::ZERO, RenderOptions::default(), &m);
         assert_parity(&cpu, &gpu, "frame renderer");
     }
 

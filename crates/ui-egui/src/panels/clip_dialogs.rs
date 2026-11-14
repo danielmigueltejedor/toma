@@ -36,10 +36,10 @@
 
 use crate::widgets::CenteredDialog as _;
 use egui::RichText;
-use filmcraft_project::{AudioChannelMap, AudioChannels, ItemKind, TrackKind};
 use serde_json::{Value, json};
+use toma_project::{AudioChannelMap, AudioChannels, ItemKind, TrackKind};
 
-use crate::FilmcraftApp;
+use crate::TomaApp;
 use crate::state::ClipDialogDraft;
 
 type Elems = Vec<(String, egui::Response, String)>;
@@ -94,7 +94,7 @@ fn hold_on() -> [(&'static str, &'static str); 5] {
 /// What Clip ▸ Rename… renames, with its current name: the selected Project item when the Project
 /// panel has focus, else the selected Timeline clip (with its linked partners when they are
 /// selected too), else the one selected Project item. None when that is ambiguous or empty.
-fn rename_target(app: &FilmcraftApp) -> Option<Value> {
+fn rename_target(app: &TomaApp) -> Option<Value> {
     let s = &app.session;
     let item = || match s.state.project_selection[..] {
         [i] => s.project.item(i).map(|it| json!({"item": i.0, "name": it.name})),
@@ -113,7 +113,7 @@ fn rename_target(app: &FilmcraftApp) -> Option<Value> {
 }
 
 /// Menu / shortcut entry points without params open a dialog. Returns None for other ids.
-pub fn route(app: &mut FilmcraftApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
+pub fn route(app: &mut TomaApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
     // Open Recent, the Home screen and a dropped project file ask before replacing unsaved
     // changes; File ▸ Open without a path picks the file first (see `ask_before_open`)
     if id == "file.open" {
@@ -141,7 +141,7 @@ pub fn route(app: &mut FilmcraftApp, id: &str, params: &Value) -> Option<Result<
         app.ui.status = e.clone();
         return Some(Err(e));
     }
-    if let Err(e) = filmcraft_engine::find_command(id).map_or(Ok(()), |c| (c.enabled)(&app.session)) {
+    if let Err(e) = toma_engine::find_command(id).map_or(Ok(()), |c| (c.enabled)(&app.session)) {
         app.ui.status = e.clone();
         return Some(Err(e));
     }
@@ -153,7 +153,7 @@ pub fn route(app: &mut FilmcraftApp, id: &str, params: &Value) -> Option<Result<
 /// Opening the project at `path` from the UI with unsaved changes: Save / Don't Save / Cancel is
 /// asked first, as for Close Project (#3843), and the project opens once the answer lets it.
 /// None when there is nothing unsaved, so the caller opens it now.
-pub fn ask_before_open(app: &mut FilmcraftApp, path: &str) -> Option<Result<Value, String>> {
+pub fn ask_before_open(app: &mut TomaApp, path: &str) -> Option<Result<Value, String>> {
     if !app.session.is_dirty() {
         return None;
     }
@@ -165,7 +165,7 @@ pub fn ask_before_open(app: &mut FilmcraftApp, path: &str) -> Option<Result<Valu
 /// A request to close the window (Quit, the title bar's close button, the OS): with unsaved
 /// changes it is cancelled and Save / Don't Save / Cancel is asked first, as in Premiere (#266).
 /// Returns whether the close must be cancelled.
-pub fn intercept_quit(app: &mut FilmcraftApp) -> bool {
+pub fn intercept_quit(app: &mut TomaApp) -> bool {
     if app.quit_confirmed || !app.session.is_dirty() {
         return false;
     }
@@ -176,15 +176,15 @@ pub fn intercept_quit(app: &mut FilmcraftApp) -> bool {
 }
 
 /// Initial parameters (and display info) of a command's dialog.
-fn defaults(app: &FilmcraftApp, id: &str) -> (Value, Value) {
+fn defaults(app: &TomaApp, id: &str) -> (Value, Value) {
     let s = &app.session;
     match id {
         "edit.pasteAttributes" | "edit.removeAttributes" => {
             // effects offered: the copied clips' (Paste) or the selected clips' (Remove) effects that
             // the command copies or removes (not Essential Sound's, which a ticked box would not remove)
             let mut names: Vec<(String, String)> = Vec::new();
-            let mut add = |e: &filmcraft_project::EffectInstance| {
-                if let Some(d) = e.def().filter(|_| filmcraft_engine::clip_ops::is_attribute_effect(e))
+            let mut add = |e: &toma_project::EffectInstance| {
+                if let Some(d) = e.def().filter(|_| toma_engine::clip_ops::is_attribute_effect(e))
                     && !names.iter().any(|n| n.0 == d.id)
                 {
                     names.push((d.id.to_string(), d.name.to_string()));
@@ -223,10 +223,10 @@ fn defaults(app: &FilmcraftApp, id: &str) -> (Value, Value) {
                 Value::Null,
             )
         }
-        "clip.nest" => (json!({"name": filmcraft_engine::commands::next_nested_name(s)}), Value::Null),
+        "clip.nest" => (json!({"name": toma_engine::commands::next_nested_name(s)}), Value::Null),
         "clip.rename" => (rename_target(app).unwrap_or(Value::Null), Value::Null),
         "clip.makeSubclip" => {
-            let d = filmcraft_engine::clip_ops::subclip_defaults(s, &json!({})).unwrap_or_else(|| json!({}));
+            let d = toma_engine::clip_ops::subclip_defaults(s, &json!({})).unwrap_or_else(|| json!({}));
             (json!({"name": d["name"], "startFrame": d["startFrame"], "endFrame": d["endFrame"], "restrictTrims": true}), json!({"fps": d["fps"]}))
         }
         "clip.editSubclip" => {
@@ -255,7 +255,7 @@ fn defaults(app: &FilmcraftApp, id: &str) -> (Value, Value) {
             let (tc, tape) = it
                 .map(|(it, m)| {
                     let f = m.info.start_timecode.unwrap_or(0);
-                    (filmcraft_time::format_timecode_frames(f, m.frame_rate(), false), it.metadata.get("Tape Name").cloned().unwrap_or_default())
+                    (toma_time::format_timecode_frames(f, m.frame_rate(), false), it.metadata.get("Tape Name").cloned().unwrap_or_default())
                 })
                 .unwrap_or_else(|| ("00:00:00:00".into(), String::new()));
             (json!({"timecode": tc, "tapeName": tape}), Value::Null)
@@ -268,7 +268,7 @@ fn defaults(app: &FilmcraftApp, id: &str) -> (Value, Value) {
                 .as_ref()
                 .map(|i| {
                     let rate = s.project.item(i.item).and_then(|p| p.as_media()).map(|m| m.frame_rate()).unwrap_or_default();
-                    filmcraft_time::format_timecode_frames(rate.frame_at(i.frame_hold.unwrap_or(i.source_in)), rate, false)
+                    toma_time::format_timecode_frames(rate.frame_at(i.frame_hold.unwrap_or(i.source_in)), rate, false)
                 })
                 .unwrap_or_else(|| "00:00:00:00".into());
             (json!({"enabled": enabled, "holdOn": "in", "timecode": tc, "holdFilters": hold_filters}), Value::Null)
@@ -280,7 +280,7 @@ fn defaults(app: &FilmcraftApp, id: &str) -> (Value, Value) {
             let it = q.and_then(|q| s.state.selection.iter().find_map(|c| q.find_item(*c).map(|x| x.1.clone())));
             let fps = q.map(|q| q.settings.frame_rate.as_f64()).unwrap_or(24.0);
             let speed = it.as_ref().map_or(1.0, |i| i.speed);
-            let interp = it.as_ref().map_or(filmcraft_project::TimeInterpolation::default(), |i| i.time_interpolation);
+            let interp = it.as_ref().map_or(toma_project::TimeInterpolation::default(), |i| i.time_interpolation);
             let maintain_pitch = it.as_ref().is_some_and(|i| i.maintain_pitch);
             (
                 json!({"speed": (speed.abs() * 100.0 * 100.0).round() / 100.0, "reverse": speed < 0.0 || it.as_ref().is_some_and(|i| i.reverse), "maintainPitch": maintain_pitch, "ripple": false, "interpolation": interp.name()}),
@@ -296,7 +296,7 @@ fn defaults(app: &FilmcraftApp, id: &str) -> (Value, Value) {
 
 /// The info of the Close Project, Open Project and Quit prompts: the project they are asked over
 /// (`Session::document_epoch`). When another project replaces it, the prompt closes.
-fn asked_over(s: &filmcraft_engine::Session) -> Value {
+fn asked_over(s: &toma_engine::Session) -> Value {
     json!({"project": s.document_epoch})
 }
 
@@ -365,13 +365,13 @@ fn frames(ui: &mut egui::Ui, elems: &mut Elems, pre: &str, p: &mut Value, key: &
         if r.changed() {
             p[key] = json!(v);
         }
-        let rate = filmcraft_time::FrameRate::from_f64(if fps > 0.0 { fps } else { 24.0 });
-        ui.label(RichText::new(filmcraft_time::format_timecode_frames(v, rate, false)).monospace().weak());
+        let rate = toma_time::FrameRate::from_f64(if fps > 0.0 { fps } else { 24.0 });
+        ui.label(RichText::new(toma_time::format_timecode_frames(v, rate, false)).monospace().weak());
     });
 }
 
 /// Draw the open dialog, if any.
-pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
+pub fn show(app: &mut TomaApp, ctx: &egui::Context) {
     let Some(mut d) = app.ui.clip_dialog.clone() else { return };
     crate::widgets::revert_drag_on_escape(ctx, egui::Id::unique("clip-dialog-before-drag"), &mut d);
     let Some((title, pre)) = meta(&d.command) else {
@@ -627,18 +627,17 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
                 // changes, so incomplete input survives frames and cannot accidentally apply.
                 let (dur, was, fps) =
                     (d.info["duration"].as_i64().unwrap_or(0), d.info["speed"].as_f64().unwrap_or(1.0), d.info["fps"].as_f64().unwrap_or(24.0));
-                let rate = filmcraft_time::FrameRate::from_f64(if fps.is_finite() && fps > 0.0 { fps } else { 24.0 });
+                let rate = toma_time::FrameRate::from_f64(if fps.is_finite() && fps > 0.0 { fps } else { 24.0 });
                 let now = p["speed"].as_f64().unwrap_or(100.0) / 100.0;
                 let refresh_duration = p["duration"].is_null() || d.info["durationSpeed"] != p["speed"];
                 if refresh_duration {
-                    let ticks =
-                        if now.is_finite() && now > 0.0 { filmcraft_time::Tick((dur as f64 * was / now).round() as i64) } else { filmcraft_time::Tick::ZERO };
+                    let ticks = if now.is_finite() && now > 0.0 { toma_time::Tick((dur as f64 * was / now).round() as i64) } else { toma_time::Tick::ZERO };
                     // Match the speed command's minimum applied duration of one frame.
-                    p["duration"] = json!(filmcraft_time::format_timecode_frames(rate.frame_at(ticks).max(1), rate, false));
+                    p["duration"] = json!(toma_time::format_timecode_frames(rate.frame_at(ticks).max(1), rate, false));
                 }
                 let before = if refresh_duration { p["duration"].clone() } else { d.info["durationText"].clone() };
                 text(ui, &mut elems, pre, p, "duration", tl!("Duration:"), 120.0);
-                let frames = filmcraft_time::parse_timecode(p["duration"].as_str().unwrap_or_default(), rate, false, 0);
+                let frames = toma_time::parse_timecode(p["duration"].as_str().unwrap_or_default(), rate, false, 0);
                 let speed =
                     frames.ok().filter(|f| *f > 0).map(|f| rate.tick_of(f)).filter(|ticks| ticks.0 > 0).map(|ticks| dur as f64 * was * 100.0 / ticks.0 as f64);
                 valid = speed.is_some_and(|speed| speed.is_finite() && (0.01..=100_000.0).contains(&speed));
@@ -654,7 +653,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
                 check(ui, &mut elems, pre, p, "maintainPitch", tl!("Maintain Audio Pitch"), true);
                 check(ui, &mut elems, pre, p, "ripple", tl!("Ripple Edit, Shifting Trailing Clips"), true);
                 ui.label(RichText::new(tl!("Time Interpolation")).strong());
-                for m in filmcraft_project::TimeInterpolation::ALL {
+                for m in toma_project::TimeInterpolation::ALL {
                     let r = ui.radio(p["interpolation"].as_str() == Some(m.name()), crate::i18n::t(m.label()));
                     push(&mut elems, format!("{pre}.interpolation.{}", m.name()), &r, m.label());
                     if r.clicked() {
@@ -800,7 +799,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
 
 /// Go on after the unsaved-changes prompt (Don't Save, or Save once it saved): close the project,
 /// then for Quit close the window; for Open open the chosen project instead of closing.
-fn leave(app: &mut FilmcraftApp, ctx: &egui::Context, prompt: &ClipDialogDraft) {
+fn leave(app: &mut TomaApp, ctx: &egui::Context, prompt: &ClipDialogDraft) {
     let command = prompt.command.as_str();
     // Quit ▸ Don't Save discards the changes: closing the project also clears their recovery
     // snapshot, so the next launch doesn't offer them back. Open replaces the project only once
@@ -827,7 +826,7 @@ fn leave(app: &mut FilmcraftApp, ctx: &egui::Context, prompt: &ClipDialogDraft) 
 
 /// A Recent row on Home asked (`editAfterOpen`): the project it chose is open, so Home switches to
 /// Edit, as it does when no prompt was needed.
-fn edit_after_open(app: &mut FilmcraftApp, prompt: &ClipDialogDraft) {
+fn edit_after_open(app: &mut TomaApp, prompt: &ClipDialogDraft) {
     if prompt.info["editAfterOpen"].as_bool() == Some(true) {
         app.ui.mode = crate::state::Mode::Edit;
     }
@@ -896,9 +895,8 @@ pub(crate) mod tests {
     /// checked as well. Non-undoable commands (views such as Properties) stay out of the shortcut
     /// editor by design, so they are not checked.
     pub(crate) fn assert_dialog_commands_bindable(table: &str, opens: impl Fn(&str) -> bool, except: &[&str]) {
-        let bindable = filmcraft_engine::Session::default().shortcuts.commands();
-        let checked: Vec<&str> =
-            filmcraft_engine::command_specs().iter().filter(|c| c.journal && opens(c.id) && !except.contains(&c.id)).map(|c| c.id).collect();
+        let bindable = toma_engine::Session::default().shortcuts.commands();
+        let checked: Vec<&str> = toma_engine::command_specs().iter().filter(|c| c.journal && opens(c.id) && !except.contains(&c.id)).map(|c| c.id).collect();
         assert!(!checked.is_empty(), "{table}: no command was checked");
         let missing: Vec<&str> = checked.into_iter().filter(|id| !bindable.iter().any(|b| b.id == *id)).collect();
         assert!(

@@ -1,9 +1,9 @@
 //! Single-pass VBR must land near its target bitrate even on a short, high-motion clip.
 
 use crate::common::{self, Yuv};
-use filmcraft_h264enc::*;
 use std::io::Read;
 use std::process::{Command, Stdio};
+use toma_h264enc::*;
 
 /// Encode two seconds of a zooming fractal at 1080p, streaming the frames from ffmpeg into the encoder, and return
 /// the resulting bitrate; `None` when there is no ffmpeg.

@@ -1,9 +1,9 @@
 use super::*;
-use filmcraft_media::{DemoScene, MediaSource};
+use toma_media::{DemoScene, MediaSource};
 
 fn demo_project() -> (Project, ItemId, ItemId) {
     let mut p = Project::new("Test");
-    let src = filmcraft_media::generators::GeneratorSource::demo(DemoScene::OceanSunset);
+    let src = toma_media::generators::GeneratorSource::demo(DemoScene::OceanSunset);
     let info = src.info().clone();
     let clip = p.add_item(
         "Ocean_Sunset.mp4",
@@ -397,7 +397,7 @@ fn source_par_follows_interpret_footage_subclips_and_sequences() {
 
 #[test]
 fn sequence_display_format_round_trips_and_old_files_load_as_timecode() {
-    use filmcraft_time::TimeDisplay;
+    use toma_time::TimeDisplay;
     for d in [TimeDisplay::Timecode, TimeDisplay::Feet35, TimeDisplay::Feet16, TimeDisplay::Frames] {
         let st = SequenceSettings { display: d, ..Default::default() };
         let back: SequenceSettings = serde_json::from_str(&serde_json::to_string(&st).unwrap()).unwrap();

@@ -6,9 +6,9 @@
 //! and sharpen, which depend on the pixel's place or its neighbours, and the HSL Secondary
 //! denoise and blur) is switched off for the sampling and named in the result.
 
-use filmcraft_color::{ColorPipeline, Lut3d};
-use filmcraft_project::{EffectInstance, Param, ParamValue, Project};
-use filmcraft_time::Tick;
+use toma_color::{ColorPipeline, Lut3d};
+use toma_project::{EffectInstance, Param, ParamValue, Project};
+use toma_time::Tick;
 
 use crate::effects::{self, FxCtx, dec, enc};
 use crate::image::Image;
@@ -119,7 +119,7 @@ pub fn sample_lumetri(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use filmcraft_project::find_effect;
+    use toma_project::find_effect;
 
     fn lumetri(params: &[(&str, ParamValue)]) -> EffectInstance {
         let mut e = find_effect("lumetri").expect("lumetri").instance();

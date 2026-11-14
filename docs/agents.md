@@ -1,41 +1,41 @@
 # Agents
 
-FilmCraft is built to be driven by AI agents, and largely built by them. Part 1 covers using
-FilmCraft from an agent. Part 2 covers developing FilmCraft as an agent.
+Toma is built to be driven by AI agents, and largely built by them. Part 1 covers using
+Toma from an agent. Part 2 covers developing Toma as an agent.
 
-# Part 1: driving FilmCraft
+# Part 1: driving Toma
 
 ## 1. MCP server
 
-`filmcraft-cli mcp` serves MCP on stdio. It has two modes:
+`toma-cli mcp` serves MCP on stdio. It has two modes:
 
 | Mode | Command | What it drives |
 |---|---|---|
-| Headless | `filmcraft-cli mcp --demo` or `--project p.fcproj` (neither = empty project) | an in-process engine session, no window |
-| Bridge | `filmcraft-cli mcp --bridge 127.0.0.1:9876` | the running desktop app started with `filmcraft --control 9876` |
+| Headless | `toma-cli mcp --demo` or `--project p.fcproj` (neither = empty project) | an in-process engine session, no window |
+| Bridge | `toma-cli mcp --bridge 127.0.0.1:9876` | the running desktop app started with `toma --control 9876` |
 
 Headless mode also takes `--data-dir DIR` (user presets). Any other option is rejected (exit 2):
 there are no folder-confinement flags such as `--automation-read-root`, so the server can read
 and write wherever the user can.
 
-**Claude Code.** The repository's `.mcp.json` registers both servers (`filmcraft` = bridge,
-`filmcraft-headless` = demo). Both point at `target/release/filmcraft-cli`, so build it first:
+**Claude Code.** The repository's `.mcp.json` registers both servers (`toma` = bridge,
+`toma-headless` = demo). Both point at `target/release/toma-cli`, so build it first:
 
 ```sh
-cargo build --release -p filmcraft-cli -p filmcraft
-export FILMCRAFT_CONTROL_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
-./target/release/filmcraft --control 9876 &      # only for the bridge server
+cargo build --release -p toma-cli -p toma
+export TOMA_CONTROL_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+./target/release/toma --control 9876 &      # only for the bridge server
 claude                                           # approve the project MCP servers when asked
 ```
 
 To register the server by hand, or for another MCP client, use the absolute binary path:
 
 ```sh
-claude mcp add filmcraft-headless -- /abs/path/filmcraft/target/release/filmcraft-cli mcp --demo
+claude mcp add toma-headless -- /abs/path/toma/target/release/toma-cli mcp --demo
 ```
 
 ```json
-{ "mcpServers": { "filmcraft": { "command": "/abs/path/filmcraft-cli", "args": ["mcp", "--bridge", "127.0.0.1:9876"] } } }
+{ "mcpServers": { "toma": { "command": "/abs/path/toma-cli", "args": ["mcp", "--bridge", "127.0.0.1:9876"] } } }
 ```
 
 ### Effect parameter replies
@@ -56,19 +56,19 @@ returns `{"removed": true}` or `{"removed": false}` (no keyframe sat exactly at 
 
 ### From an installed release
 
-The release packages ship `filmcraft-cli` alongside the desktop app, so no build is needed:
+The release packages ship `toma-cli` alongside the desktop app, so no build is needed:
 
 | Install | CLI |
 |---|---|
-| Windows (MSI) | `%LOCALAPPDATA%\Programs\ArtCraft\FilmCraft\filmcraft-cli.exe` by default (`C:\Program Files\ArtCraft\FilmCraft\filmcraft-cli.exe` for an all-users install, under `Program Files (x86)` instead for the 32-bit build, or wherever you installed it otherwise), not on `PATH` |
-| Linux (deb, rpm) | `/usr/bin/filmcraft-cli` |
-| macOS | the separate `filmcraft-cli-<version>-macos-<arch>.zip` release asset (the `.app` holds only the desktop app) |
+| Windows (MSI) | `%LOCALAPPDATA%\Programs\Nodalia\Toma\toma-cli.exe` by default (`C:\Program Files\Nodalia\Toma\toma-cli.exe` for an all-users install, under `Program Files (x86)` instead for the 32-bit build, or wherever you installed it otherwise), not on `PATH` |
+| Linux (deb, rpm) | `/usr/bin/toma-cli` |
+| macOS | the separate `toma-cli-<version>-macos-<arch>.zip` release asset (the `.app` holds only the desktop app) |
 
 ```sh
 # Windows (PowerShell), default install folder
-claude mcp add filmcraft -- "$env:LOCALAPPDATA\Programs\ArtCraft\FilmCraft\filmcraft-cli.exe" mcp
+claude mcp add toma -- "$env:LOCALAPPDATA\Programs\Nodalia\Toma\toma-cli.exe" mcp
 # Linux, or macOS with the CLI unzipped onto PATH
-claude mcp add filmcraft -- filmcraft-cli mcp
+claude mcp add toma -- toma-cli mcp
 ```
 
 ### Tools
@@ -99,11 +99,11 @@ Typical loop: `project_inspect` / `sequence_inspect` → get ids → `command_ru
 ### Conventions
 
 The server follows a few conventions that make it predictable for agents. They are not
-FilmCraft-specific: the sibling craft apps' MCP servers can follow the same ones, so an agent that has
+Toma-specific: the sibling craft apps' MCP servers can follow the same ones, so an agent that has
 driven one app can drive the others.
 
 - **Core tools.** `command_list`, `command_run`, `command_batch`, `doc_inspect` and `render_preview`
-  work in both modes. The FilmCraft tools above stay as they are.
+  work in both modes. The Toma tools above stay as they are.
 - **Titles and annotations.** Every tool has a `title` and the four MCP hints (`readOnlyHint`,
   `destructiveHint`, `idempotentHint`, `openWorldHint`), so a client can let the read-only tools
   (lists, inspects, renders, screenshots) run without asking and ask before edits. When you add a
@@ -114,8 +114,8 @@ driven one app can drive the others.
 - **Errors.** A failing command is an `isError` result with the engine's message. A line that is not
   JSON gets a `-32700` parse error (id `null`) and the server keeps serving. A command that panics is
   reported as `internal error: …`, and the session stays usable.
-- **Resources.** `filmcraft://document` (the project tree and active sequence, as `doc_inspect`) and
-  `filmcraft://commands` (the command catalog, as `command_list`), both `application/json`. For MCP
+- **Resources.** `toma://document` (the project tree and active sequence, as `doc_inspect`) and
+  `toma://commands` (the command catalog, as `command_list`), both `application/json`. For MCP
   2026-07-28 clients such as current Claude Code, list and read results carry the `ttlMs` and
   `cacheScope` hints that revision requires.
 
@@ -150,37 +150,37 @@ progress and stop it:
   name the first still as `path`, the name `file.import` takes for the sequence, and the two commands
   add `lastPath`, the last still, and `basePath`, the name the stills are numbered from (a cancelled
   long export's clean-up removes only the stills numbered from `basePath` with the digits of
-  `lastPath`, up to it). `filmcraft-cli export` prints the first and the last.
+  `lastPath`, up to it). `toma-cli export` prints the first and the last.
 - `file.exportMedia`, `export.quick`, `export.resolve` and `export.queue.add` also return `warnings` (an array of
   strings, empty when none). If the default or explicitly selected In/Out range covers one
   sequence frame and at least one mark is set, the warning suggests `range: "entire"` (#3364).
   The export still succeeds, including with `wait: true` over MCP or the bridge. Explicit custom,
   work-area and entire-sequence ranges are unchanged and do not warn. Queue additions collect
-  warnings from the newly added ranges. `filmcraft-cli export` (including `--queue`)
+  warnings from the newly added ranges. `toma-cli export` (including `--queue`)
   also prints the warning on stderr and suggests `--range entire`; the warning does not change
   the exit status. Frame counts here use the sequence rate, even when the export rate differs.
 - Bridge mode works the same way: the export runs as an app job (the app stays responsive and shows
   "Exporting… NN%" in its status bar) and the call returns when it is written, however long it
-  takes. `filmcraft-cli --bridge … exec file.exportMedia … wait=true` blocks the same way.
+  takes. `toma-cli --bridge … exec file.exportMedia … wait=true` blocks the same way.
 
 ## 2. Control channel
 
-`filmcraft --control 9876` (or `FILMCRAFT_CONTROL_PORT=9876`) listens on `127.0.0.1` only. Send one
-JSON request per line and get one JSON reply per line. Set a fresh `FILMCRAFT_CONTROL_TOKEN` for the
+`toma --control 9876` (or `TOMA_CONTROL_PORT=9876`) listens on `127.0.0.1` only. Send one
+JSON request per line and get one JSON reply per line. Set a fresh `TOMA_CONTROL_TOKEN` for the
 desktop session as above; the CLI / MCP bridge must inherit the same variable. Raw requests must
 include it as `token` on every line (replace the placeholders below). Full setup and method table:
 [control-protocol.md](control-protocol.md).
 
 ```jsonc
-{"id":1,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"engine.commands"}
-{"id":2,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"file.openDemoProject"}}
-{"id":3,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"playhead.set","params":{"seconds":2}}}
-{"id":4,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"sequence.addEdit"}}
-{"id":5,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"effects.apply","params":{"effect":"Gaussian Blur"}}}
-{"id":6,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"ui.elements","params":{"prefix":"tools."}}
-{"id":7,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"ui.click","params":{"id":"tools.Razor"}}
-{"id":8,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"ui.key","params":{"key":"Cmd+Z"}}
-{"id":9,"token":"<FILMCRAFT_CONTROL_TOKEN>","method":"ui.screenshot","params":{"path":"/tmp/timeline.png","panel":"Timeline"}}
+{"id":1,"token":"<TOMA_CONTROL_TOKEN>","method":"engine.commands"}
+{"id":2,"token":"<TOMA_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"file.openDemoProject"}}
+{"id":3,"token":"<TOMA_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"playhead.set","params":{"seconds":2}}}
+{"id":4,"token":"<TOMA_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"sequence.addEdit"}}
+{"id":5,"token":"<TOMA_CONTROL_TOKEN>","method":"engine.execute","params":{"command":"effects.apply","params":{"effect":"Gaussian Blur"}}}
+{"id":6,"token":"<TOMA_CONTROL_TOKEN>","method":"ui.elements","params":{"prefix":"tools."}}
+{"id":7,"token":"<TOMA_CONTROL_TOKEN>","method":"ui.click","params":{"id":"tools.Razor"}}
+{"id":8,"token":"<TOMA_CONTROL_TOKEN>","method":"ui.key","params":{"key":"Cmd+Z"}}
+{"id":9,"token":"<TOMA_CONTROL_TOKEN>","method":"ui.screenshot","params":{"path":"/tmp/timeline.png","panel":"Timeline"}}
 ```
 
 Replies look like `{"id":4,"ok":true,"result":{"cuts":2}}` or `{"id":7,"ok":false,"error":"…"}`.
@@ -190,7 +190,7 @@ Minimal client:
 import json, os, socket
 s = socket.create_connection(("127.0.0.1", 9876)); f = s.makefile("rw")
 def call(method, **params):
-    f.write(json.dumps({"id": 1, "token": os.environ["FILMCRAFT_CONTROL_TOKEN"], "method": method, "params": params}) + "\n"); f.flush()
+    f.write(json.dumps({"id": 1, "token": os.environ["TOMA_CONTROL_TOKEN"], "method": method, "params": params}) + "\n"); f.flush()
     return json.loads(f.readline())
 print(call("engine.execute", command="sequence.inspect"))
 ```
@@ -222,32 +222,32 @@ Notes:
 - `timeline.move` takes linked partners along while Linked Selection is on: moving a picture
   clip moves its sound by the same offset (pass `"linked": false` to move only the listed clips).
   It returns `{"moved": [ids]}`, every clip that moved.
-- Without a window, `filmcraft-cli run script.jsonl` (lines of `{"id":"…","params":{…}}`) runs the
+- Without a window, `toma-cli run script.jsonl` (lines of `{"id":"…","params":{…}}`) runs the
   same commands headlessly. See §2b for the rest of the CLI.
 
 ## 2b. Command-line interface
 
 Every command is also one shell call away. Options go anywhere; output is JSON; exit status is 0 on
-success, 1 when a command fails and 2 on a usage error. `filmcraft-cli help`, `filmcraft-cli --help`
-and `filmcraft-cli -h` print the reference and exit successfully.
-If the reader of stdout closes the pipe early (`filmcraft-cli commands | head`), the CLI drops the rest
+success, 1 when a command fails and 2 on a usage error. `toma-cli help`, `toma-cli --help`
+and `toma-cli -h` print the reference and exit successfully.
+If the reader of stdout closes the pipe early (`toma-cli commands | head`), the CLI drops the rest
 of its output but still finishes the work, saves included, and the exit status still reports
 failures; any other stdout write error is reported and makes the status 1.
 
 ```sh
-filmcraft-cli commands razor                     # find ids (add --json for machine output)
-filmcraft-cli describe timeline.razor            # one command: menu, shortcut, params, enabled now
-filmcraft-cli --demo inspect sequence            # project / sequence as JSON
-filmcraft-cli --project p.fcproj --save exec timeline.razor seconds=3.5
-filmcraft-cli --project p.fcproj exec effects.apply '{"effect":"Gaussian Blur"}'
-filmcraft-cli --project p.fcproj exec markers.exportCsv path=review.csv
-filmcraft-cli --project p.fcproj --save import a.mov b.wav
-filmcraft-cli --project p.fcproj export out.mp4  # format from the extension; waits for the job
-filmcraft-cli --project p.fcproj export out --preset "YouTube 1080p Full HD" --start 0 --end 10
-filmcraft-cli export --list-presets prores       # built-in + user presets (--data-dir for another library)
-filmcraft-cli --project p.fcproj exec export.queue.add preset="Apple ProRes 422 HQ" path=renders/ start=true wait=true
-echo '{"id":"file.newBin","params":{"name":"Selects"}}' | filmcraft-cli --project p.fcproj --save run -
-filmcraft-cli --bridge 127.0.0.1:9876 exec window.workspace.color   # the running app
+toma-cli commands razor                     # find ids (add --json for machine output)
+toma-cli describe timeline.razor            # one command: menu, shortcut, params, enabled now
+toma-cli --demo inspect sequence            # project / sequence as JSON
+toma-cli --project p.fcproj --save exec timeline.razor seconds=3.5
+toma-cli --project p.fcproj exec effects.apply '{"effect":"Gaussian Blur"}'
+toma-cli --project p.fcproj exec markers.exportCsv path=review.csv
+toma-cli --project p.fcproj --save import a.mov b.wav
+toma-cli --project p.fcproj export out.mp4  # format from the extension; waits for the job
+toma-cli --project p.fcproj export out --preset "YouTube 1080p Full HD" --start 0 --end 10
+toma-cli export --list-presets prores       # built-in + user presets (--data-dir for another library)
+toma-cli --project p.fcproj exec export.queue.add preset="Apple ProRes 422 HQ" path=renders/ start=true wait=true
+echo '{"id":"file.newBin","params":{"name":"Selects"}}' | toma-cli --project p.fcproj --save run -
+toma-cli --bridge 127.0.0.1:9876 exec window.workspace.color   # the running app
 ```
 
 `key=value` values are parsed as JSON when they can be (`3.5`, `true`, `[1,2]`), otherwise taken as
@@ -292,16 +292,16 @@ failed write reports an error. The menu opens the normal save dialog; cancelling
 
 For any UI change, look at the result:
 
-1. `cargo run --release -p filmcraft -- --control 9876`
+1. `cargo run --release -p toma -- --control 9876`
 2. Drive the feature through the control channel or the MCP bridge: commands, then clicks and drags
    by automation id.
 3. Assert on `ui.inspect`, `ui.elements` and `sequence.inspect`.
 4. Take `ui.screenshot` (the whole window and the panel you changed) and open the PNG.
 
-Screenshots you commit must follow [AGENTS.md](../AGENTS.md) §1: FilmCraft only, openly licensed
+Screenshots you commit must follow [AGENTS.md](../AGENTS.md) §1: Toma only, openly licensed
 media, sidecar and `ATTRIBUTION.md` entry.
 
-# Part 2: developing FilmCraft
+# Part 2: developing Toma
 
 ## 4. Orientation, in this order
 
@@ -418,7 +418,7 @@ report URL loss. Imported addresses are checked again before opening.
 `colors.addCustom {color:"#RRGGBB"}` saves a reusable project-local marker/clip swatch (maximum 64). Duplicate colors are no-ops. Palette additions are independently undoable from marker edits.
 Interchange imports fill missing names on existing swatches while preserving target names,
 even when the palette is full. Formats that cannot retain the saved palette warn about its
-loss even if none of its colors are assigned; FilmCraft projects and OTIO retain it.
+loss even if none of its colors are assigned; Toma projects and OTIO retain it.
 An OTIO collection unions its timelines' saved palettes in encounter order, preserving the
 first valid name and filling missing names for retained colors. Empty later palettes do
 not clear earlier colors. Colors beyond the project's 64-entry limit produce a warning.
@@ -437,15 +437,15 @@ identity for editing; `timeline.markerEnd.<id>`, `source.markerEnd.<id>`, and
 `program.markerEnd.<id>` expose the end flags to automation. Point markers keep their whole flag.
 
 On macOS, custom marker/clip colors and project-palette edits open the system Color panel.
-Its live selection updates only the draft; FilmCraft's Add/Save/Apply and Cancel actions keep
+Its live selection updates only the draft; Toma's Add/Save/Apply and Cancel actions keep
 ownership of project changes and Undo. Closing the Color panel retains the draft without applying
 it. Colors are converted to opaque sRGB `#RRGGBB`; typed hex values update the open panel.
-Preset swatches and named project colors remain in FilmCraft. Other hosts, headless automation,
-and native-picker failures reuse egui's established opaque color picker with FilmCraft's hex field.
+Preset swatches and named project colors remain in Toma. Other hosts, headless automation,
+and native-picker failures reuse egui's established opaque color picker with Toma's hex field.
 The `*.native` automation control reopens the system panel; `*.hex` remains available on either path. Switching projects or leaving
 the draft closes its native panel, and an older draft cannot redirect or close a newer picker.
 While the native Color panel has keyboard focus, its Edit menu uses AppKit's normal text actions
-for Copy/Paste, Select All, and Undo/Redo. FilmCraft's Edit menu returns when its main window
+for Copy/Paste, Select All, and Undo/Redo. Toma's Edit menu returns when its main window
 regains focus. Temporary panel hiding during app deactivation does not discard the color draft.
 
 This host picker is scoped to marker colors, clip labels, and project palette editing. Existing

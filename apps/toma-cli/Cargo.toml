@@ -1,0 +1,38 @@
+[package]
+name = "toma-cli"
+description = "Toma headless CLI and MCP server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "toma-cli"
+path = "src/main.rs"
+
+[features]
+default = []
+# Speech-to-text (Text panel ▸ Transcribe) with Whisper on the CPU, and model downloads.
+whisper = ["toma-engine/whisper", "toma-engine/speech-download"]
+
+[dependencies]
+toma-engine = { workspace = true }
+toma-export = { workspace = true }
+toma-project = { workspace = true }
+toma-render = { workspace = true }
+toma-time = { workspace = true }
+toma-gpu = { workspace = true }
+toma-media = { workspace = true }
+toma-codecs = { workspace = true }
+toma-platform = { workspace = true }
+toma-mxf = { workspace = true }
+toma-mpegts = { workspace = true }
+toma-ogg = { workspace = true }
+toma-automation = { workspace = true }
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[dev-dependencies]
+toma-testkit = { workspace = true }

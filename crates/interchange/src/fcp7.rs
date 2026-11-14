@@ -17,14 +17,14 @@
 
 use std::collections::{HashMap, HashSet};
 
-use filmcraft_geom::Vec2;
-use filmcraft_media::{DemoScene, Generator, MediaKind};
-use filmcraft_project::{
+use roxmltree::Node;
+use toma_geom::Vec2;
+use toma_media::{DemoScene, Generator, MediaKind};
+use toma_project::{
     BinId, ClipId, EffectInstance, Interpolation, ItemId, ItemKind, Keyframe, Label, Marker, MarkerId, MarkerKind, Param, ParamValue, Project, Sequence,
     TrackItem, TrackKind, Transition, TransitionAlign, TransitionId, effect::find_effect_by_name, find_effect,
 };
-use filmcraft_time::{FrameRate, Tick, format_timecode_frames};
-use roxmltree::Node;
+use toma_time::{FrameRate, Tick, format_timecode_frames};
 
 use crate::common::{
     Builder, MAX_IMPORTED_TRACKS, MAX_RATE, MediaSpec, base_item, db_to_gain, empty_sequence, file_name, frames_round, gain_to_db, item_media, item_path,
@@ -639,7 +639,7 @@ impl<'a, 'i> Imp<'a, 'i, '_> {
                 }
             }
             _ => {
-                let def = filmcraft_project::find_effect(id).filter(|d| !d.intrinsic).or_else(|| find_effect_by_name(name).filter(|d| !d.intrinsic));
+                let def = toma_project::find_effect(id).filter(|d| !d.intrinsic).or_else(|| find_effect_by_name(name).filter(|d| !d.intrinsic));
                 let Some(def) = def else {
                     self.report.warn(format!("effect \"{name}\" is not supported and was skipped"));
                     return;
@@ -973,7 +973,7 @@ impl Exp<'_, '_> {
         self.written_seqs.insert(id);
     }
 
-    fn write_transition(&mut self, tr: &Transition, kind: TrackKind, rate: FrameRate, t: &filmcraft_project::Track) {
+    fn write_transition(&mut self, tr: &Transition, kind: TrackKind, rate: FrameRate, t: &toma_project::Track) {
         if !on_frame(rate, tr.start) || !on_frame(rate, tr.duration) {
             self.report.warn("sub-frame transition positions were rounded to frames");
         }
@@ -1150,7 +1150,7 @@ impl Exp<'_, '_> {
                 return;
             }
             other => {
-                self.report.info(format!("generator \"{}\" is written with a FilmCraft effect id", other.label()));
+                self.report.info(format!("generator \"{}\" is written with a Toma effect id", other.label()));
                 self.w.text("name", other.label());
                 self.w.text("effectid", format!("filmcraft:{}", serde_json::to_string(other).unwrap_or_default()));
             }
@@ -1402,7 +1402,7 @@ impl Exp<'_, '_> {
         };
         let media = if kind == TrackKind::Video { "video" } else { "audio" };
         // the name an export has always written, so a UI rename does not change the file
-        self.open_effect(filmcraft_project::interchange_name(def), def.id, def.category.get(1).copied().unwrap_or("Filter"), "filter", media, e.enabled);
+        self.open_effect(toma_project::interchange_name(def), def.id, def.category.get(1).copied().unwrap_or("Filter"), "filter", media, e.enabled);
         for pd in &def.params {
             let Some(p) = e.params.get(pd.id) else { continue };
             match &p.value {

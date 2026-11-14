@@ -7,15 +7,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use filmcraft_export::{ExportSettings, Exporter, Format, FrameRenderer, GpuRendering, Progress, Step, export, gpu_render_stats, register_frame_renderer};
-use filmcraft_media::generators::GeneratorSource;
-use filmcraft_media::{Generator, MediaSource};
-use filmcraft_project::{ItemId, ItemKind, Label, MediaClip, MediaRef, Project, SequenceSettings, TrackKind};
-use filmcraft_render::{Image, RenderOptions, SourceMap, SourceProvider};
-use filmcraft_time::{FrameRate, Tick, TimeRange};
 use rayon::prelude::*;
+use toma_export::{ExportSettings, Exporter, Format, FrameRenderer, GpuRendering, Progress, Step, export, gpu_render_stats, register_frame_renderer};
+use toma_media::generators::GeneratorSource;
+use toma_media::{Generator, MediaSource};
+use toma_project::{ItemId, ItemKind, Label, MediaClip, MediaRef, Project, SequenceSettings, TrackKind};
+use toma_render::{Image, RenderOptions, SourceMap, SourceProvider};
+use toma_time::{FrameRate, Tick, TimeRange};
 
-const CHILD: &str = "FILMCRAFT_RENDERER_REENTRANCY_CASE";
+const CHILD: &str = "TOMA_RENDERER_REENTRANCY_CASE";
 const FRAMES: i64 = 6;
 static CREATED: AtomicUsize = AtomicUsize::new(0);
 static RENDERED: AtomicUsize = AtomicUsize::new(0);
@@ -30,11 +30,11 @@ impl FrameRenderer for YieldingRenderer {
         let checksum: usize = (0..4096usize).into_par_iter().map(|x| x ^ 37).sum();
         assert!(checksum > 0);
         RENDERED.fetch_add(1, Ordering::Relaxed);
-        Some(filmcraft_render::render_sequence(project, seq, t, opts, sources))
+        Some(toma_render::render_sequence(project, seq, t, opts, sources))
     }
 
-    fn caps(&self) -> filmcraft_render::plan::DeviceCaps {
-        filmcraft_render::plan::DeviceCaps::ALL
+    fn caps(&self) -> toma_render::plan::DeviceCaps {
+        toma_render::plan::DeviceCaps::ALL
     }
 }
 

@@ -1,10 +1,10 @@
 //! Decode speed (ignored by default; run with
-//! `cargo test --release -p filmcraft-hevc --test it perf:: -- --ignored --nocapture`).
+//! `cargo test --release -p toma-hevc --test it perf:: -- --ignored --nocapture`).
 
 use crate::common;
 
-use filmcraft_hevc::Decoder;
 use std::time::Instant;
+use toma_hevc::Decoder;
 
 fn bench(data: &[u8], threads: usize, iters: usize) -> (usize, f64) {
     let mut best = f64::MAX;

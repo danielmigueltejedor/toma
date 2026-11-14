@@ -1,0 +1,8 @@
+asset:        toma.icns
+title:        Toma app icon, macOS .icns
+author:       Brandon Thomas (Toma owner), for the Toma project
+source:       original work (drawn by the owner in Nodalia, then vectorised)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-02 by Claude (agent) for Brandon Thomas
+notes:        Built from resvg renders of toma.svg (Apple icon grid) with iconutil by packaging/icons.sh.
