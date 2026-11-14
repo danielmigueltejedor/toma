@@ -13,13 +13,13 @@
 
 use std::collections::HashMap;
 
-use filmcraft_media::{Generator, MediaInfo};
-use filmcraft_project::{
+use serde_json::{Value, json};
+use toma_media::{Generator, MediaInfo};
+use toma_project::{
     ClipId, EffectInstance, ItemId, ItemKind, Label, Marker, MarkerId, MarkerKind, MediaRef, ParamValue, Project, Sequence, SequenceSettings, Track, TrackItem,
     TrackKind, Transition, TransitionAlign, TransitionId,
 };
-use filmcraft_time::{FrameRate, TICKS_PER_SECOND, Tick};
-use serde_json::{Value, json};
+use toma_time::{FrameRate, TICKS_PER_SECOND, Tick};
 
 use crate::common::{
     Builder, MAX_RATE, MediaSpec, base_item, empty_sequence, file_name, generator_of, item_media, path_to_file_url, rate_from_f64, relative_path, relative_url,
@@ -250,7 +250,7 @@ impl Exp<'_, '_> {
             MediaRef::Generator(g) => json!({
                 "OTIO_SCHEMA": "GeneratorReference.1",
                 "name": name,
-                "generator_kind": match g { Generator::ColorMatte { .. } => "SolidColor", Generator::BlackVideo => "black", Generator::BarsAndTone => "SMPTEBars", _ => "FilmCraftGenerator" },
+                "generator_kind": match g { Generator::ColorMatte { .. } => "SolidColor", Generator::BlackVideo => "black", Generator::BarsAndTone => "SMPTEBars", _ => "TomaGenerator" },
                 "parameters": match g { Generator::ColorMatte { color } => json!({"color": color}), _ => json!({}) },
                 "available_range": avail,
                 "metadata": {"filmcraft": {"item": item.0, "generator": g, "info": m.info, "label": self.p.item(item).map(|i| i.label), "custom_label_color": self.p.item(item).and_then(|i| i.custom_label_color)}},
@@ -459,7 +459,7 @@ impl Imp<'_, '_> {
     fn merge_palette(&mut self, meta: Option<&Value>) {
         if let Some(colors) = meta.and_then(|m| m.get("custom_colors")).and_then(Value::as_array) {
             let mut overflow = false;
-            for color in colors.iter().filter_map(Value::as_str).filter_map(filmcraft_project::HexColor::parse) {
+            for color in colors.iter().filter_map(Value::as_str).filter_map(toma_project::HexColor::parse) {
                 if self.b.p.custom_colors.contains(&color) {
                     continue;
                 }
@@ -476,7 +476,7 @@ impl Imp<'_, '_> {
         if let Some(names) = meta.and_then(|m| m.get("custom_color_names")).and_then(Value::as_object) {
             // Palette membership bounds retained names to 64; orphan input entries consume no slots.
             for (key, value) in names {
-                if let (Some(color), Some(name)) = (filmcraft_project::HexColor::parse(key), value.as_str())
+                if let (Some(color), Some(name)) = (toma_project::HexColor::parse(key), value.as_str())
                     && self.b.p.custom_colors.contains(&color)
                     && name.len() <= 128
                     && !name.chars().any(char::is_control)
@@ -522,7 +522,7 @@ impl Imp<'_, '_> {
             it.label = l;
         }
         if let Some(it) = self.b.p.item_mut(id) {
-            it.custom_label_color = meta.and_then(|m| m.get("custom_label_color")).and_then(Value::as_str).and_then(filmcraft_project::HexColor::parse);
+            it.custom_label_color = meta.and_then(|m| m.get("custom_label_color")).and_then(Value::as_str).and_then(toma_project::HexColor::parse);
         }
         let mut seq = empty_sequence(settings);
         if let Some(m) = meta {
@@ -666,7 +666,7 @@ impl Imp<'_, '_> {
             }
         }
         let Some(m) = meta else { return };
-        ti.custom_label_color = m.get("custom_label_color").and_then(Value::as_str).and_then(filmcraft_project::HexColor::parse);
+        ti.custom_label_color = m.get("custom_label_color").and_then(Value::as_str).and_then(toma_project::HexColor::parse);
         if let Some(l) = m.get("label").and_then(|l| serde_json::from_value::<Label>(l.clone()).ok()) {
             ti.label = l;
         }
@@ -839,7 +839,7 @@ impl Imp<'_, '_> {
         let label = meta.and_then(|m| m.get("label")).and_then(|l| serde_json::from_value::<Label>(l.clone()).ok());
         let offline = meta.and_then(|m| m.get("offline")).and_then(Value::as_bool);
         let Some(it) = self.b.p.item_mut(id) else { return };
-        it.custom_label_color = meta.and_then(|m| m.get("custom_label_color")).and_then(Value::as_str).and_then(filmcraft_project::HexColor::parse);
+        it.custom_label_color = meta.and_then(|m| m.get("custom_label_color")).and_then(Value::as_str).and_then(toma_project::HexColor::parse);
         if let Some(l) = label {
             it.label = l;
         }
@@ -879,7 +879,7 @@ impl Imp<'_, '_> {
             out.push(Marker {
                 url: meta.and_then(|x| x.get("url")).and_then(Value::as_str).unwrap_or("").to_string(),
                 author: meta.and_then(|x| x.get("author")).and_then(Value::as_str).unwrap_or("").to_string(),
-                custom_color: meta.and_then(|x| x.get("custom_color")).and_then(|c| c.as_str()).and_then(filmcraft_project::HexColor::parse),
+                custom_color: meta.and_then(|x| x.get("custom_color")).and_then(|c| c.as_str()).and_then(toma_project::HexColor::parse),
                 id: MarkerId(self.b.alloc()),
                 start,
                 duration,

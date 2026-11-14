@@ -11,9 +11,9 @@
 //! differently could in principle differ; the hashes were made on x86-64 Linux.
 //!
 //! An intentional change of the output (for example a different LPC order choice) regenerates the
-//! table with `cargo test -p filmcraft-flac --test golden_output -- --ignored --nocapture print`.
+//! table with `cargo test -p toma-flac --test golden_output -- --ignored --nocapture print`.
 
-use filmcraft_flac::{Encoder, EncoderConfig};
+use toma_flac::{Encoder, EncoderConfig};
 
 struct Rng(u64);
 impl Rng {

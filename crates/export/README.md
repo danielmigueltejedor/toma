@@ -44,9 +44,9 @@ reduction. A single transparent pixel moves between frames, surrounded by opaque
 near-black pixels. Decoded alpha must match exactly; opaque RGB channels allow at most 16/255
 quantization error. This test uses the Rust decoder and needs no FFmpeg installation.
 
-Run the GIF export tests with `cargo test -p filmcraft-export --lib gif_ -- --nocapture`.
-Run all export unit tests with `cargo test -p filmcraft-export --lib`.
+Run the GIF export tests with `cargo test -p toma-export --lib gif_ -- --nocapture`.
+Run all export unit tests with `cargo test -p toma-export --lib`.
 
-`filmcraft-ui-egui`'s `export_ui::gif_export_exposes_binary_alpha_option` uses the control
+`toma-ui-egui`'s `export_ui::gif_export_exposes_binary_alpha_option` uses the control
 channel to select GIF, toggle alpha and inspect the explanatory label. Set
-`FILMCRAFT_UI_SNAPSHOT_DIR` to render its Export-mode screenshot.
+`TOMA_UI_SNAPSHOT_DIR` to render its Export-mode screenshot.

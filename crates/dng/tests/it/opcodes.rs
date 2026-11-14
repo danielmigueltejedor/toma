@@ -3,13 +3,13 @@
 //! opcodes follow their optional flag, preview-only opcodes are skipped on the reduced path, and
 //! hostile lists are errors, never panics.
 
-use filmcraft_dng::opcode::encode;
-use filmcraft_dng::tiff::tags;
-use filmcraft_dng::writer::{Compression, Options, Value, write};
-use filmcraft_dng::{Dng, Error, ProcessOptions, decode_with};
+use toma_dng::opcode::encode;
+use toma_dng::tiff::tags;
+use toma_dng::writer::{Compression, Options, Value, write};
+use toma_dng::{Dng, Error, ProcessOptions, decode_with};
 
 /// Develop with the opcode lists applied (they are off by default).
-fn decode(bytes: &[u8]) -> Result<filmcraft_dng::Image, Error> {
+fn decode(bytes: &[u8]) -> Result<toma_dng::Image, Error> {
     decode_with(bytes, &ProcessOptions { apply_opcodes: true, ..Default::default() })
 }
 
@@ -192,8 +192,8 @@ fn opcode_lists_are_ignored_unless_asked_for() {
     let table: Vec<u8> = (0..4096u32).flat_map(|v| ((v / 2) as u16).to_be_bytes()).collect();
     let list = encode(&[(7, 0, [u(&[0, 0, h as u32, w as u32, 0, 1, 1, 1, 4096]), table].concat())]);
     let f = bayer(&px, w, h, &[(tags::OPCODE_LIST_1, list)]);
-    let plain = filmcraft_dng::decode(&bayer(&px, w, h, &[])).unwrap();
-    assert!(same_bits(&filmcraft_dng::decode(&f).unwrap().rgba, &plain.rgba), "default ignores the lists");
+    let plain = toma_dng::decode(&bayer(&px, w, h, &[])).unwrap();
+    assert!(same_bits(&toma_dng::decode(&f).unwrap().rgba, &plain.rgba), "default ignores the lists");
     assert!(!same_bits(&decode(&f).unwrap().rgba, &plain.rgba), "apply_opcodes uses them");
 }
 
@@ -208,9 +208,9 @@ fn process_develop_ignores_the_lists_of_its_params() {
         let dng = Dng::parse(bytes).unwrap();
         let (p, raw) = (dng.params().unwrap(), dng.raw().unwrap());
         let id = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
-        let plain = filmcraft_dng::process::develop(&raw, &p, &[1.0; 3], &id).unwrap();
+        let plain = toma_dng::process::develop(&raw, &p, &[1.0; 3], &id).unwrap();
         let on = ProcessOptions { apply_opcodes: true, ..Default::default() };
-        let used = filmcraft_dng::process::develop_with(&raw, &p, &[1.0; 3], &id, &on).unwrap();
+        let used = toma_dng::process::develop_with(&raw, &p, &[1.0; 3], &id, &on).unwrap();
         (plain.rgba, used.rgba)
     };
     let (with_list, used) = run(&bayer(&px, w, h, &[(tags::OPCODE_LIST_2, list)]));

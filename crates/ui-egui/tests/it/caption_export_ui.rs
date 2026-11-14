@@ -1,22 +1,22 @@
 //! Headless UI tests of File ▸ Export ▸ Captions… (#3365): the settings dialog picks the format,
 //! the host's save panel is asked for only that format's filter, extension and name, and
 //! `captions.export` writes it. Driven by automation id through the control channel. With
-//! `FILMCRAFT_UI_SHOTS=<dir>` the test also renders the UI with wgpu and writes PNGs there.
+//! `TOMA_UI_SHOTS=<dir>` the test also renders the UI with wgpu and writes PNGs there.
 
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 
 use egui_kittest::Harness;
-use filmcraft_engine::Session;
-use filmcraft_ui_egui::FilmcraftApp;
-use filmcraft_ui_egui::control::ControlRequest;
 use serde_json::{Value, json};
+use toma_engine::Session;
+use toma_ui_egui::TomaApp;
+use toma_ui_egui::control::ControlRequest;
 
 /// What the save panel was asked for: filter label, extensions, suggested name.
 type Asked = Arc<Mutex<Vec<(String, Vec<String>, String)>>>;
 
 struct Driver {
-    harness: Harness<'static, FilmcraftApp>,
+    harness: Harness<'static, TomaApp>,
     tx: Sender<ControlRequest>,
     asked: Asked,
     /// The name the user types in the save panel next (else the suggested one is kept).
@@ -31,13 +31,13 @@ impl Driver {
         let log = asked.clone();
         let typed = Arc::<Mutex<Option<String>>>::default();
         let answer = typed.clone();
-        let mut app = FilmcraftApp::new(session).with_control(rx);
+        let mut app = TomaApp::new(session).with_control(rx);
         app.hooks.pick_save_as = Some(Box::new(move |filter, exts, suggested| {
             log.lock().unwrap().push((filter.to_string(), exts.iter().map(|e| e.to_string()).collect(), suggested.to_string()));
             let name = answer.lock().unwrap().take().unwrap_or_else(|| suggested.to_string());
             Some(save_to.join(name).to_string_lossy().into_owned())
         }));
-        let shots = std::env::var_os("FILMCRAFT_UI_SHOTS").map(std::path::PathBuf::from);
+        let shots = std::env::var_os("TOMA_UI_SHOTS").map(std::path::PathBuf::from);
         let mut b = Harness::builder().with_size(egui::vec2(1600.0, 980.0)).with_max_steps(10_000);
         if shots.is_some() {
             b = b.wgpu().with_pixels_per_point(1.0);

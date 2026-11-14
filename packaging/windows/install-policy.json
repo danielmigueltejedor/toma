@@ -1,26 +1,26 @@
 {
-  "id": "filmcraft",
-  "name": "FilmCraft",
-  "upgradeCode": "31E6FB14-9DBC-41DD-B24B-26B71FB31B62",
+  "id": "toma",
+  "name": "Toma",
+  "upgradeCode": "91AEDAB0-A090-4A19-9E97-4B7D2BCBDF6B",
   "sources": [
-    "filmcraft.wxs"
+    "toma.wxs"
   ],
-  "icon": "assets/app-icon/filmcraft.ico",
+  "icon": "assets/app-icon/toma.ico",
   "localization": [],
   "extensions": [
     "UI"
   ],
   "payloads": [
     "NOTICE",
-    "filmcraft-cli.exe",
-    "filmcraft.exe"
+    "toma-cli.exe",
+    "toma.exe"
   ],
   "registry": [
     [
       "-1",
-      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\filmcraft.exe",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\toma.exe",
       "",
-      "[#FilmcraftExe]"
+      "[#TomaExe]"
     ]
   ],
   "mode": "dualScope"

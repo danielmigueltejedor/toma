@@ -2,11 +2,11 @@
 //! relinking one file finds the others by folder remap, fingerprint mismatches are refused,
 //! Make Offline, folder search and undo.
 
-use filmcraft_media::DemoScene;
-use filmcraft_project::ItemId;
-use filmcraft_render::offline::{OfflineReason, slate_rgba8};
-use filmcraft_time::FrameRate;
 use serde_json::json;
+use toma_media::DemoScene;
+use toma_project::ItemId;
+use toma_render::offline::{OfflineReason, slate_rgba8};
+use toma_time::FrameRate;
 
 use crate::Session;
 use crate::media_test_util::{frame_rgba, make_movie, make_movie_at, psnr, session_with, tmp_dir};
@@ -77,7 +77,7 @@ fn moved_media_opens_offline_and_relinks_others_by_folder() {
     assert!(!s.offline.prompt);
     assert_eq!(frame_rgba(&mut s, 3, 1.0).2, online, "relinked media renders as before the move");
     let b_path = s.project.item(items[1]).unwrap().as_media().unwrap().media.clone();
-    let filmcraft_project::MediaRef::File { path: b_path } = b_path else { panic!("relinked media must remain file-based") };
+    let toma_project::MediaRef::File { path: b_path } = b_path else { panic!("relinked media must remain file-based") };
     assert_eq!(std::path::Path::new(&b_path), moved.join("b.mov"));
     // undo brings the old (missing) paths back, and the slate with them
     s.execute("edit.undo", json!({})).unwrap();
@@ -338,9 +338,8 @@ fn deleting_bin_keeps_subclip_source_but_removes_unused_media() {
     let mut s = open(&path);
     let p = std::sync::Arc::make_mut(&mut s.project);
     let seq = s.state.active_sequence.unwrap();
-    let range = filmcraft_time::TimeRange::new(filmcraft_time::Tick::ZERO, p.item(items[0]).unwrap().duration());
-    let sub =
-        p.add_item("Subclip", filmcraft_project::Label::Iris, filmcraft_project::ItemKind::Subclip { parent: items[0], range, restrict_trims: false }, None);
+    let range = toma_time::TimeRange::new(toma_time::Tick::ZERO, p.item(items[0]).unwrap().duration());
+    let sub = p.add_item("Subclip", toma_project::Label::Iris, toma_project::ItemKind::Subclip { parent: items[0], range, restrict_trims: false }, None);
     for track in p.sequence_mut(seq).unwrap().all_tracks_mut() {
         track.items.retain(|clip| clip.item != items[1]);
         for clip in &mut track.items {
@@ -382,9 +381,8 @@ fn deleting_subclip_and_source_does_not_keep_an_unused_source() {
     let mut s = open(&path);
     let seq = s.state.active_sequence.unwrap();
     let p = std::sync::Arc::make_mut(&mut s.project);
-    let range = filmcraft_time::TimeRange::new(filmcraft_time::Tick::ZERO, p.item(items[0]).unwrap().duration());
-    let sub =
-        p.add_item("Subclip", filmcraft_project::Label::Iris, filmcraft_project::ItemKind::Subclip { parent: items[0], range, restrict_trims: false }, None);
+    let range = toma_time::TimeRange::new(toma_time::Tick::ZERO, p.item(items[0]).unwrap().duration());
+    let sub = p.add_item("Subclip", toma_project::Label::Iris, toma_project::ItemKind::Subclip { parent: items[0], range, restrict_trims: false }, None);
     for t in p.sequence_mut(seq).unwrap().all_tracks_mut() {
         for c in &mut t.items {
             if c.item == items[0] {
@@ -405,10 +403,9 @@ fn deleting_bin_preserves_intermediate_subclip_needed_by_surviving_clip() {
     let mut s = open(&path);
     let seq = s.state.active_sequence.unwrap();
     let p = std::sync::Arc::make_mut(&mut s.project);
-    let range = filmcraft_time::TimeRange::new(filmcraft_time::Tick::ZERO, p.item(items[0]).unwrap().duration());
-    let parent =
-        p.add_item("Parent", filmcraft_project::Label::Iris, filmcraft_project::ItemKind::Subclip { parent: items[0], range, restrict_trims: false }, None);
-    let outer = p.add_item("Outer", filmcraft_project::Label::Iris, filmcraft_project::ItemKind::Subclip { parent, range, restrict_trims: false }, None);
+    let range = toma_time::TimeRange::new(toma_time::Tick::ZERO, p.item(items[0]).unwrap().duration());
+    let parent = p.add_item("Parent", toma_project::Label::Iris, toma_project::ItemKind::Subclip { parent: items[0], range, restrict_trims: false }, None);
+    let outer = p.add_item("Outer", toma_project::Label::Iris, toma_project::ItemKind::Subclip { parent, range, restrict_trims: false }, None);
     for t in p.sequence_mut(seq).unwrap().all_tracks_mut() {
         for c in &mut t.items {
             if c.item == items[0] {
@@ -432,7 +429,7 @@ fn deleting_bin_preserves_intermediate_subclip_needed_by_surviving_clip() {
 fn set_media_path(s: &mut Session, id: ItemId, path: &str) {
     let p = std::sync::Arc::make_mut(&mut s.project);
     let m = p.item_mut(id).and_then(|i| i.as_media_mut()).unwrap();
-    m.media = filmcraft_project::MediaRef::File { path: path.to_string() };
+    m.media = toma_project::MediaRef::File { path: path.to_string() };
 }
 
 // #2782: Make Offline ▸ delete removed whatever file an item's path named.
@@ -487,7 +484,7 @@ fn new_offline_file_keeps_only_the_file_name() {
         let r = s.execute("file.newOfflineFile", json!({"fileName": given})).unwrap();
         let id = ItemId(r["item"].as_u64().unwrap());
         let m = s.project.item(id).unwrap().as_media().unwrap();
-        assert_eq!(m.media, filmcraft_project::MediaRef::File { path: want.to_string() }, "{given}");
+        assert_eq!(m.media, toma_project::MediaRef::File { path: want.to_string() }, "{given}");
     }
 }
 
@@ -523,7 +520,7 @@ fn offline_all_is_saved_and_reopening_does_not_ask_again() {
 }
 
 /// The first video clip of the active sequence: (its media item, its source in-point).
-fn first_clip(s: &Session) -> (ItemId, filmcraft_time::Tick) {
+fn first_clip(s: &Session) -> (ItemId, toma_time::Tick) {
     let seq = s.project.sequence(s.state.active_sequence.unwrap()).unwrap();
     let ti = &seq.video_tracks[0].items[0];
     (ti.item, ti.source_in)

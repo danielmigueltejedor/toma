@@ -9,11 +9,11 @@ use std::sync::{Arc, Mutex};
 use craft_ui::docking::Node;
 use craft_ui::layout::SplitSize;
 use egui_kittest::Harness;
-use filmcraft_engine::Session;
-use filmcraft_ui_egui::control::ControlRequest;
-use filmcraft_ui_egui::dock::PanelKind;
-use filmcraft_ui_egui::{AudioOut, FilmcraftApp};
 use serde_json::{Value, json};
+use toma_engine::Session;
+use toma_ui_egui::control::ControlRequest;
+use toma_ui_egui::dock::PanelKind;
+use toma_ui_egui::{AudioOut, TomaApp};
 
 type Fill = Box<dyn FnMut(&mut [f32], usize) + Send>;
 
@@ -41,7 +41,7 @@ impl AudioOut for Out {
 }
 
 struct Driver {
-    harness: Harness<'static, FilmcraftApp>,
+    harness: Harness<'static, TomaApp>,
     tx: Sender<ControlRequest>,
     fill: Arc<Mutex<Option<Fill>>>,
     /// How many times the output was started.
@@ -56,7 +56,7 @@ impl Driver {
         let (tx, rx) = channel();
         let fill = Arc::new(Mutex::new(None));
         let starts = Arc::new(AtomicUsize::new(0));
-        let mut app = FilmcraftApp::new(session).with_control(rx);
+        let mut app = TomaApp::new(session).with_control(rx);
         app.audio = Some(Box::new(Out { fill: fill.clone(), starts: starts.clone() }));
         let harness = Harness::builder().with_size(egui::vec2(1600.0, 980.0)).with_max_steps(10_000).build_eframe(move |_cc| app);
         let mut d = Driver { harness, tx, fill, starts };

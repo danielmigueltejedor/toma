@@ -1,11 +1,11 @@
 {
   "mcpServers": {
-    "filmcraft": {
-      "command": "target/release/filmcraft-cli",
+    "toma": {
+      "command": "target/release/toma-cli",
       "args": ["mcp", "--bridge", "127.0.0.1:9876"]
     },
-    "filmcraft-headless": {
-      "command": "target/release/filmcraft-cli",
+    "toma-headless": {
+      "command": "target/release/toma-cli",
       "args": ["mcp", "--demo"]
     }
   }

@@ -23,8 +23,8 @@
 mod eac3;
 mod tables;
 
-use filmcraft_bitstream::BitReader;
 use std::sync::OnceLock;
+use toma_bitstream::BitReader;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum Error {

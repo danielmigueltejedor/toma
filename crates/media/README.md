@@ -1,4 +1,4 @@
-# filmcraft-media
+# toma-media
 
 Media sources, still-image and image-sequence import, generated media, audio streams, and decoded
 frame caching for Toma.

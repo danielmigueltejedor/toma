@@ -5,7 +5,7 @@
 
 use serde_json::Value;
 
-use crate::FilmcraftApp;
+use crate::TomaApp;
 
 #[cfg(not(target_arch = "wasm32"))]
 use nodalia_update::egui::{Action, Updater};
@@ -43,7 +43,7 @@ impl Default for Runtime {
     }
 }
 
-impl FilmcraftApp {
+impl TomaApp {
     /// Whether the app looks for a newer release when it starts (off until the desktop app turns it on).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn set_startup_update_check(&mut self, on: bool) {
@@ -51,7 +51,7 @@ impl FilmcraftApp {
     }
 }
 
-pub(crate) fn check(app: &mut FilmcraftApp) -> Result<Value, String> {
+pub(crate) fn check(app: &mut TomaApp) -> Result<Value, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         app.updates_rt.check_requested = true;
@@ -67,7 +67,7 @@ pub(crate) fn check(app: &mut FilmcraftApp) -> Result<Value, String> {
     }
 }
 
-pub(crate) fn tick(app: &mut FilmcraftApp, ctx: &egui::Context) {
+pub(crate) fn tick(app: &mut TomaApp, ctx: &egui::Context) {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let rt = &mut app.updates_rt;
@@ -86,13 +86,13 @@ pub(crate) fn tick(app: &mut FilmcraftApp, ctx: &egui::Context) {
 
 /// Whether an update window is open: they are modal.
 #[cfg(all(test, not(target_arch = "wasm32")))]
-fn blocks_input(app: &FilmcraftApp) -> bool {
+fn blocks_input(app: &TomaApp) -> bool {
     app.updates_rt.updater.is_open()
 }
 
 /// Carries out what the update windows asked for.
 #[cfg(not(target_arch = "wasm32"))]
-fn act(app: &mut FilmcraftApp, ctx: &egui::Context, action: Action) {
+fn act(app: &mut TomaApp, ctx: &egui::Context, action: Action) {
     match action {
         Action::OpenUrl(url) => crate::links::open(app, ctx, &url),
         Action::Exit => {
@@ -109,7 +109,7 @@ fn act(app: &mut FilmcraftApp, ctx: &egui::Context, action: Action) {
     }
 }
 
-pub(crate) fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
+pub(crate) fn show(app: &mut TomaApp, ctx: &egui::Context) {
     #[cfg(not(target_arch = "wasm32"))]
     {
         // An installation waits until nothing is unsaved.
@@ -122,7 +122,7 @@ pub(crate) fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
     #[cfg(target_arch = "wasm32")]
     if app.updates_rt.manual_window_open {
         let mut open = true;
-        egui::Window::new(crate::i18n::t("FilmCraft Updates"))
+        egui::Window::new(crate::i18n::t("Toma Updates"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn startup_prompt_shows_and_escape_closes_it() {
-        let mut app = FilmcraftApp::new(filmcraft_engine::Session::default());
+        let mut app = TomaApp::new(toma_engine::Session::default());
         let ctx = egui::Context::default();
         app.updates_rt.updater = Updater::new(crate::UPDATE_APP).with_stamp(None);
         app.updates_rt.updater.offer(nodalia_update::Release {
@@ -180,7 +180,7 @@ mod tests {
             page: "https://github.com/getnodalia/toma/releases/tag/v99.0.0".into(),
             asset: None,
         });
-        let frame = |app: &mut FilmcraftApp, events: Vec<egui::Event>| {
+        let frame = |app: &mut TomaApp, events: Vec<egui::Event>| {
             let mut output = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
                 show(app, ui.ctx());
             });

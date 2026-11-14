@@ -1,4 +1,4 @@
-Toma app icon (filmcraft.svg, filmcraft-small.svg and every file derived from them in this
+Toma app icon (toma.svg, toma-small.svg and every file derived from them in this
 directory, and the web favicon where the project has one).
 
 The icon is a portrait of Georges Méliès cut out, converted to black and white and placed over the

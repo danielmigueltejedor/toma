@@ -5,14 +5,14 @@
 use std::sync::mpsc::{Sender, channel};
 
 use egui_kittest::Harness;
-use filmcraft_engine::Session;
-use filmcraft_project::BinEntry;
-use filmcraft_ui_egui::FilmcraftApp;
-use filmcraft_ui_egui::control::ControlRequest;
 use serde_json::{Value, json};
+use toma_engine::Session;
+use toma_project::BinEntry;
+use toma_ui_egui::TomaApp;
+use toma_ui_egui::control::ControlRequest;
 
 struct Driver {
-    harness: Harness<'static, FilmcraftApp>,
+    harness: Harness<'static, TomaApp>,
     tx: Sender<ControlRequest>,
 }
 
@@ -21,7 +21,7 @@ impl Driver {
         let mut session = Session::default();
         session.execute("file.openDemoProject", json!({})).expect("demo project");
         let (tx, rx) = channel();
-        let app = FilmcraftApp::new(session).with_control(rx);
+        let app = TomaApp::new(session).with_control(rx);
         let harness = Harness::builder().with_size(egui::vec2(1600.0, 980.0)).with_max_steps(10_000).build_eframe(move |_cc| app);
         let mut d = Driver { harness, tx };
         d.frames(4);
@@ -86,7 +86,7 @@ impl Driver {
         panic!("{id} never appeared: {:?}", self.ids(id.split('.').next().unwrap()));
     }
 
-    fn app(&mut self) -> &mut FilmcraftApp {
+    fn app(&mut self) -> &mut TomaApp {
         self.harness.state_mut()
     }
 

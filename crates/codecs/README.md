@@ -1,4 +1,4 @@
-# filmcraft-codecs
+# toma-codecs
 
 The L2 container and codec hub connects media sources to Toma's software and registered
 hardware decoders. It provides container openers, GOP-aware video seeking, packet audio decoding
@@ -38,7 +38,7 @@ are generated in memory. Existing MP3, AIFF, FLAC and Vorbis tests cover the nor
 audio paths with FFmpeg used only as an external fixture generator/oracle.
 
 ```sh
-cargo test -p filmcraft-codecs --lib audio::panic_tests
-FILMCRAFT_REQUIRE_ORACLES=1 cargo test -p filmcraft-codecs
+cargo test -p toma-codecs --lib audio::panic_tests
+TOMA_REQUIRE_ORACLES=1 cargo test -p toma-codecs
 cargo xtask ci
 ```
