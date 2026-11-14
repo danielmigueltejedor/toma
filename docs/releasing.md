@@ -1,5 +1,20 @@
 # Releasing Toma
 
+## How a release happens
+
+Toma releases like every Nodalia app. In one pull request, bump `[workspace.package] version` in
+`Cargo.toml` and add `docs/release-notes/vX.Y.Z.md` (format: that folder's README); the required
+check *Release notes are written* fails a bump without complete notes. Merging it runs
+`release-auto.yml`: Foundation's `release-tag` tags the merge and drafts the release with the
+notes, `release-linux.yml`, `release-macos.yml` and `release-windows.yml` build, test and attach
+their packages on standard runners, and Foundation's `release-publish` publishes the release once
+all of them passed. Nobody pushes a tag by hand. A failed platform leaves the release a draft:
+land the fix and run *Release from main* by hand with `retag-draft`.
+
+The sections below describe the packaging scripts. Where they mention a `release` branch,
+`release.yml` or a `release` environment, that was the inherited pipeline, which is gone.
+
+
 Every push to the `release` branch runs `.github/workflows/release.yml`. The workflow builds
 installers for macOS, Windows, Linux (AppImage, deb, rpm, tarball, Flatpak) and FreeBSD, plus
 the web build, and creates or updates a **draft**
